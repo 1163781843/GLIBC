@@ -6,17 +6,8 @@
 #########################################################################
 #!/bin/bash
 
+export CC="/usr/bin/gcc -DGRANDSTREAM_NETWORKS"
+
 ../glibc-2.29/configure \
-    --prefix=${PWD}/build \
-    --disable-silent-rules \
-     --disable-dependency-tracking \
-     --enable-kernel=2.6.32 \
-     --without-cvs \
-     --disable-profile \
-     --without-gd \
-     --enable-clocale=gnu \
-     --enable-add-ons \
-     --without-selinux \
-     --enable-obsolete-rpc \
-     --enable-nscd
+    --prefix=${PWD}/build
 
