@@ -12,14 +12,15 @@
 
 static void __log(int level, const char *file, int line, const char *format, ...)
 {
-    char *log_buffer = NULL;
     time_t tt;
     struct tm *t = NULL;
     struct timeval tv;
+    char buffer[1024] = {0};
+    int year, month, day, hour, min, sec;
 
     va_list ap;
     va_start(ap, format);
-    vasprintf(&log_buffer, format, ap);
+    vsprintf(buffer, format, ap);
     va_end(ap);
 
 #if 1
@@ -27,16 +28,20 @@ static void __log(int level, const char *file, int line, const char *format, ...
     t = localtime(&tt);
     gettimeofday(&tv, NULL);
 
+    year = tv.tv_sec / 3600 / 24 / 365 + 1970;
+    month = tv.tv_sec % 3600 % 24 % 365;
+
+#if 1
     fprintf(stderr, "[%4d-%02d-%02d %02d:%02d:%02d:%03ld] [%04ld] %s:%d -- %s\n", t->tm_year + 1900, t->tm_mon + 1,
-        t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec, tv.tv_usec, syscall(SYS_gettid), file, line, log_buffer);
+        t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec, tv.tv_usec, syscall(SYS_gettid), file, line, buffer);
+#else
+    fprintf(stderr, "[%04d-%02ld:%03ld] [%04ld] %s:%d -- %s\n",
+        year, tv.tv_sec, tv.tv_usec, syscall(SYS_gettid), file, line, buffer);
+#endif
 #else
     fprintf(stderr, "[%04ld] %s:%d -- %s\n",
-        syscall(SYS_gettid), file, line, log_buffer);
+        syscall(SYS_gettid), file, line, buffer);
 #endif
-
-    if (log_buffer) {
-        free(log_buffer);
-    }
 }
 
 #define log(level, ...) \
