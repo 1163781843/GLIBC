@@ -12,5 +12,5 @@ export CC=/usr/bin/gcc
 export INCLUDE_DIR=${CUR_PATH}/../build/build/include/
 export LIB_DIR=${CUR_PATH}/../build/build/lib/
 
-${CC} -g -I${INCLUDE_DIR} -L${LIB_DIR} -Wl,-rpath=${LIB_DIR} malloc.c -lpthread -Wl,--dynamic-linker=${LIB_DIR}/ld-linux-x86-64.so.2
+${CC} -g -DGRANDSTREAM_NETWORKS -I${INCLUDE_DIR} -L${LIB_DIR} -Wl,-rpath=${LIB_DIR} malloc.c -lpthread -Wl,--dynamic-linker=${LIB_DIR}/ld-linux-x86-64.so.2
 

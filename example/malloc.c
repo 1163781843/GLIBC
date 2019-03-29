@@ -96,6 +96,11 @@ static void *start_runtime(void *arg)
     }
 }
 
+static void glib_log_fun(int level, const char *file, int line, const char *msg)
+{
+    log(level, "[GLIBC] %s:%d -- %s\n", file, line, msg);
+}
+
 int main()
 {
     int malloc_size = 0;
@@ -103,6 +108,8 @@ int main()
     char *a[alloc_time];
     char *b[alloc_time];
     pthread_t thread = -1;
+
+    glibc_set_log(glib_log_fun);
 
     //mallopt(M_TRIM_THRESHOLD, 64 * 1024);
 
