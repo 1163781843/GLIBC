@@ -2991,6 +2991,10 @@ tcache_init(void)
   if (tcache_shutting_down)
     return;
 
+#ifdef GRANDSTREAM_NETWORKS
+	glib_log(1, "%s enter!", __FUNCTION__);
+#endif
+
   arena_get (ar_ptr, bytes);
   victim = _int_malloc (ar_ptr, bytes);
   if (!victim && ar_ptr != NULL)
@@ -3047,6 +3051,9 @@ __libc_malloc (size_t bytes)
   checked_request2size (bytes, tbytes);
   size_t tc_idx = csize2tidx (tbytes);
 
+#ifdef GRANDSTREAM_NETWORKS
+	glib_log(1, "request size: %ld, allocated size: %ld", bytes, tbytes);
+#endif
   MAYBE_INIT_TCACHE ();
 
   DIAG_PUSH_NEEDS_COMMENT;
@@ -3343,7 +3350,10 @@ __libc_valloc (size_t bytes)
 {
   if (__malloc_initialized < 0)
     ptmalloc_init ();
-  fprintf(stderr, "__libc_valloc enter!\n");
+
+#ifdef GRANDSTREAM_NETWORKS
+	glib_log(1, "__libc_valloc enter!");
+#endif
 
   void *address = RETURN_ADDRESS (0);
   size_t pagesize = GLRO (dl_pagesize);
@@ -3355,7 +3365,10 @@ __libc_pvalloc (size_t bytes)
 {
   if (__malloc_initialized < 0)
     ptmalloc_init ();
-  fprintf(stderr, "__libc_pvalloc enter!\n");
+
+#ifdef GRANDSTREAM_NETWORKS
+	glib_log(1, "__libc_pvalloc enter!");
+#endif
 
   void *address = RETURN_ADDRESS (0);
   size_t pagesize = GLRO (dl_pagesize);
@@ -3549,6 +3562,10 @@ _int_malloc (mstate av, size_t bytes)
 
 #if USE_TCACHE
   size_t tcache_unsorted_count;	    /* count of unsorted chunks processed */
+#endif
+
+#ifdef GRANDSTREAM_NETWORKS
+	glib_log(1, "_int_malloc enter!");
 #endif
 
   /*
@@ -4694,6 +4711,9 @@ _int_memalign (mstate av, size_t alignment, size_t bytes)
     }
 
   /* Call malloc with worst case padding to hit alignment. */
+#ifdef GRANDSTREAM_NETWORKS
+	glib_log(1, "%s enter!", __FUNCTION__);
+#endif
 
   m = (char *) (_int_malloc (av, nb + alignment + MINSIZE));
 

@@ -12,36 +12,18 @@
 
 static void __log(int level, const char *file, int line, const char *format, ...)
 {
-    time_t tt;
-    struct tm *t = NULL;
     struct timeval tv;
     char buffer[1024] = {0};
-    int year, month, day, hour, min, sec;
 
     va_list ap;
     va_start(ap, format);
     vsprintf(buffer, format, ap);
     va_end(ap);
 
-#if 1
-    tt = time(NULL);
-    t = localtime(&tt);
     gettimeofday(&tv, NULL);
 
-    year = tv.tv_sec / 3600 / 24 / 365 + 1970;
-    month = tv.tv_sec % 3600 % 24 % 365;
-
-#if 1
-    fprintf(stderr, "[%4d-%02d-%02d %02d:%02d:%02d:%03ld] [%04ld] %s:%d -- %s\n", t->tm_year + 1900, t->tm_mon + 1,
-        t->tm_mday, t->tm_hour, t->tm_min, t->tm_sec, tv.tv_usec, syscall(SYS_gettid), file, line, buffer);
-#else
-    fprintf(stderr, "[%04d-%02ld:%03ld] [%04ld] %s:%d -- %s\n",
-        year, tv.tv_sec, tv.tv_usec, syscall(SYS_gettid), file, line, buffer);
-#endif
-#else
-    fprintf(stderr, "[%04ld] %s:%d -- %s\n",
-        syscall(SYS_gettid), file, line, buffer);
-#endif
+    fprintf(stderr, "[%ld:%06ld] [%04ld] %s:%03d -- %s\n",
+        tv.tv_sec, tv.tv_usec, syscall(SYS_gettid), file, line, buffer);
 }
 
 #define log(level, ...) \
@@ -52,8 +34,6 @@ static size_t series(size_t size)
     int count = 0, i;
 
     for (count = 0; size != 0; count++, size >>= 1);
-
-    //log(1, "count: %d\n", count);
 
     return count;
 }
@@ -68,17 +48,19 @@ static void print_info()
         info.arena, info.fordblks, info.uordblks, info.keepcost, info.hblkhd, info.hblks);
 }
 
+#define ALLOC_TIME 1
+
 static void *start_runtime(void *arg)
 {
     int malloc_size = 0;
-    int alloc_time = 4000;
-    char *a[alloc_time];
-    char *b[alloc_time];
+    int alloc_time = ALLOC_TIME;
+    char *a[ALLOC_TIME];
+    char *b[ALLOC_TIME];
 
     //mallopt(M_TRIM_THRESHOLD, 64 * 1024);
 
     int i, j;
-    for(i = 0; i < alloc_time; i++) {
+    for(i = 0; i < ALLOC_TIME; i++) {
         a[i] = (char *)malloc(byte_aligned(52722));
         memset(a[i], 1, byte_aligned(52722));
         malloc_size += byte_aligned(52722);
@@ -88,7 +70,7 @@ static void *start_runtime(void *arg)
     }
 
     log(1, "malloc finished, %d kB, %d, %d\n", malloc_size / 1024, sizeof(size_t), byte_aligned(52722));
-    for(i = alloc_time - 1; i >= 0; i--) {
+    for(i = ALLOC_TIME - 1; i >= 0; i--) {
         free(a[i]);
         free(b[i]);
     }
@@ -103,15 +85,15 @@ static void *start_runtime(void *arg)
 
 static void glib_log_fun(int level, const char *file, int line, const char *msg)
 {
-    log(level, "[GLIBC] %s:%d -- %s\n", file, line, msg);
+    log(level, "[GLIBC] %s:%d %s\n", file, line, msg);
 }
 
 int main()
 {
     int malloc_size = 0;
-    int alloc_time = 4000;
-    char *a[alloc_time];
-    char *b[alloc_time];
+    int alloc_time = ALLOC_TIME;
+    char *a[ALLOC_TIME];
+    char *b[ALLOC_TIME];
     pthread_t thread = -1;
 
     glibc_set_log(glib_log_fun);
@@ -119,7 +101,7 @@ int main()
     //mallopt(M_TRIM_THRESHOLD, 64 * 1024);
 
     int i, j;
-    for(i = 0; i < alloc_time; i++) {
+    for(i = 0; i < ALLOC_TIME; i++) {
         a[i] = (char *)malloc(byte_aligned(52722));
         memset(a[i], 1, byte_aligned(52722));
         malloc_size += byte_aligned(52722);
@@ -129,7 +111,7 @@ int main()
     }
 
     log(1, "malloc finished, %d kB, %d, %d\n", malloc_size / 1024, sizeof(size_t), byte_aligned(52722));
-    for(i = alloc_time - 1; i >= 0; i--) {
+    for(i = ALLOC_TIME - 1; i >= 0; i--) {
         free(a[i]);
         free(b[i]);
     }
