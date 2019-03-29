@@ -79,6 +79,15 @@ extern void *(*__morecore) (ptrdiff_t __size);
 extern void *__default_morecore (ptrdiff_t __size)
 __THROW __attribute_malloc__;
 
+#ifdef GRANDSTREAM_NETWORKS
+extern void glibc_set_log(void (*function)(int level, const char *file, int line, const char *msg)) __THROW;
+
+extern void glibc_log(int level, const char *file, int line, const char *format, ...);
+
+#define glib_log(level, ...) \
+	glibc_log((level), __FILE__, __LINE__, __VA_ARGS__)
+#endif
+
 /* SVID2/XPG mallinfo structure */
 
 struct mallinfo

@@ -3343,6 +3343,7 @@ __libc_valloc (size_t bytes)
 {
   if (__malloc_initialized < 0)
     ptmalloc_init ();
+  fprintf(stderr, "__libc_valloc enter!\n");
 
   void *address = RETURN_ADDRESS (0);
   size_t pagesize = GLRO (dl_pagesize);
@@ -3354,6 +3355,7 @@ __libc_pvalloc (size_t bytes)
 {
   if (__malloc_initialized < 0)
     ptmalloc_init ();
+  fprintf(stderr, "__libc_pvalloc enter!\n");
 
   void *address = RETURN_ADDRESS (0);
   size_t pagesize = GLRO (dl_pagesize);
@@ -5594,6 +5596,30 @@ weak_alias (__malloc_trim, malloc_trim)
 
 #if SHLIB_COMPAT (libc, GLIBC_2_0, GLIBC_2_26)
 compat_symbol (libc, __libc_free, cfree, GLIBC_2_0);
+#endif
+
+#ifdef GRANDSTREAM_NETWORKS
+typedef void (*glib_fun)(int level, const char *file, int line, const char *msg);
+glib_fun log_fun;
+
+void glibc_set_log(void (*function)(int level, const char *file, int line, const char *msg))
+{
+	log_fun = function;
+}
+
+void glibc_log(int level, const char *file, int line, const char *format, ...)
+{
+	char buf[1024] = {0};
+	va_list ap;
+
+	va_start(ap, format);
+	vsprintf(buf, format, ap);
+	va_end(ap);
+
+	if (log_fun) {
+		log_fun(level ,file, line, buf);
+	}
+}
 #endif
 
 /* ------------------------------------------------------------
