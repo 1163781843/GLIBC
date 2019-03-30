@@ -50,10 +50,25 @@
    malloc_chunks.  It is allocated with mmap() and always starts at an
    address aligned to HEAP_MAX_SIZE.  */
 
+/*!
+    程序刚开始执行时，每个线程是没有 heap 区域的。当其申请内存时，就需要一个结构来记录对应的信息，而 heap_info 的作用就是这个。
+    而且当该 heap 的资源被使用完后，就必须得再次申请内存了。
+    此外，一般申请的 heap 是不连续的，因此需要记录不同 heap 之间的链接结构。
+    该数据结构是专门为从 Memory Mapping Segment 处申请的内存准备的，即为非主线程准备的。
+    主线程可以通过 sbrk() 函数扩展 program break location 获得（直到触及 Memory Mapping Segment），
+      只有一个 heap，没有 heap_info 数据结构。
+ */
 typedef struct _heap_info
 {
+  /*! 堆对应的 arena 的地址 */
   mstate ar_ptr; /* Arena for this heap. */
+  /*!
+      由于一个线程申请一个堆之后，可能会使用完，之后就必须得再次申请。
+      因此，一个可能会有多个堆。prev 即记录了上一个 heap_info 的地址。
+      这里可以看到每个堆的 heap_info 是通过单向链表进行链接的。
+  */
   struct _heap_info *prev; /* Previous heap. */
+  /*! size 表示当前堆的大小 */
   size_t size;   /* Current size in bytes. */
   size_t mprotect_size; /* Size in bytes that has been mprotected
                            PROT_READ|PROT_WRITE.  */

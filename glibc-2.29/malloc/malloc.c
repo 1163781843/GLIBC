@@ -1042,14 +1042,44 @@ static void*   memalign_check(size_t alignment, size_t bytes,
 */
 
 struct malloc_chunk {
-
+  /*!
+    如果该 chunk 的物理相邻的前一地址 chunk（两个指针的地址差值为前一 chunk 大小）
+    是空闲的话，那该字段记录的是前一个 chunk 的大小 (包括 chunk 头)。
+    否则，该字段可以用来存储物理相邻的前一个 chunk 的数据。
+    这里的前一 chunk 指的是较低地址的 chunk
+  */
   INTERNAL_SIZE_T      mchunk_prev_size;  /* Size of previous chunk (if free).  */
+  /*!
+    该 chunk 的大小，大小必须是 2 * SIZE_SZ 的整数倍。
+    如果申请的内存大小不是 2 * SIZE_SZ 的整数倍，会被转换满足大小的最小的 2 * SIZE_SZ 的倍数。
+    32 位系统中，SIZE_SZ 是 4；64 位系统中，SIZE_SZ 是 8
+    该字段的低三个比特位对 chunk 的大小没有影响，它们从高到低分别表示
+      NON_MAIN_ARENA，记录当前 chunk 是否不属于主线程，1 表示不属于，0 表示属于。
+      IS_MAPPED，记录当前 chunk 是否是由 mmap 分配的。
+      PREV_INUSE，记录前一个 chunk 块是否被分配。
+        一般来说，堆中第一个被分配的内存块的 size 字段的 P 位都会被设置为 1，
+        以便于防止访问前面的非法内存。当一个 chunk 的 size 的 P 位为 0 时，
+        我们能通过 prev_size 字段来获取上一个 chunk 的大小以及地址。
+        这也方便进行空闲 chunk 之间的合并。
+   */
   INTERNAL_SIZE_T      mchunk_size;       /* Size in bytes, including overhead. */
 
+  /*!
+     chunk 处于分配状态时，从 fd 字段开始是用户的数据。chunk 空闲时，会被添加到对应的空闲管理链表中，其字段的含义如下
+       fd 指向下一个（非物理相邻）空闲的 chunk
+       bk 指向上一个（非物理相邻）空闲的 chunk
+       通过 fd 和 bk 可以将空闲的 chunk 块加入到空闲的 chunk 块链表进行统一管理
+   */
   struct malloc_chunk* fd;         /* double links -- used only if free. */
   struct malloc_chunk* bk;
 
   /* Only used for large blocks: pointer to next larger size.  */
+  /*!
+     也是只有 chunk 空闲的时候才使用，不过其用于较大的 chunk（large chunk）。
+       fd_nextsize 指向前一个与当前 chunk 大小不同的第一个空闲块，不包含 bin 的头指针。
+       bk_nextsize 指向后一个与当前 chunk 大小不同的第一个空闲块，不包含 bin 的头指针。
+       一般空闲的 large chunk 在 fd 的遍历顺序中，按照由大到小的顺序排列。这样做可以避免在寻找合适 chunk 时挨个遍历。
+   */
   struct malloc_chunk* fd_nextsize; /* double links -- used only if free. */
   struct malloc_chunk* bk_nextsize;
 };
@@ -1167,20 +1197,21 @@ nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 */
 
 /* conversion from malloc headers to user pointers, and back */
-
+/*! mem 指向用户得到的内存的起始位置。 */
 #define chunk2mem(p)   ((void*)((char*)(p) + 2*SIZE_SZ))
 #define mem2chunk(mem) ((mchunkptr)((char*)(mem) - 2*SIZE_SZ))
 
 /* The smallest possible chunk */
+/*! offsetof 函数计算出 fd_nextsize 在 malloc_chunk 中的偏移，说明最小的 chunk 至少要包含 bk 指针。 */
 #define MIN_CHUNK_SIZE        (offsetof(struct malloc_chunk, fd_nextsize))
 
 /* The smallest size we can malloc is an aligned minimal chunk */
-
+/*! 用户最小申请的内存大小必须是 2 * SIZE_SZ 的最小整数倍。 */
 #define MINSIZE  \
   (unsigned long)(((MIN_CHUNK_SIZE+MALLOC_ALIGN_MASK) & ~MALLOC_ALIGN_MASK))
 
 /* Check if m has acceptable alignment */
-
+/*! 检查分配给用户的内存是否对齐 */
 #define aligned_OK(m)  (((unsigned long)(m) & MALLOC_ALIGN_MASK) == 0)
 
 #define misaligned_chunk(p) \
@@ -1193,13 +1224,13 @@ nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
    padded and aligned. To simplify some other code, the bound is made
    low enough so that adding MINSIZE will also not wrap around zero.
  */
-
+/*! 请求字节数判断 */
 #define REQUEST_OUT_OF_RANGE(req)                                 \
   ((unsigned long) (req) >=						      \
    (unsigned long) (INTERNAL_SIZE_T) (-2 * MINSIZE))
 
 /* pad request bytes into a usable size -- internal version */
-
+/*! 将用户请求内存大小转为实际分配内存大小 */
 #define request2size(req)                                         \
   (((req) + SIZE_SZ + MALLOC_ALIGN_MASK < MINSIZE)  ?             \
    MINSIZE :                                                      \
@@ -1263,12 +1294,14 @@ nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 #define SIZE_BITS (PREV_INUSE | IS_MMAPPED | NON_MAIN_ARENA)
 
 /* Get size, ignoring use bits */
+/*! 获取 chunk size */
 #define chunksize(p) (chunksize_nomask (p) & ~(SIZE_BITS))
 
 /* Like chunksize, but do not mask SIZE_BITS.  */
 #define chunksize_nomask(p)         ((p)->mchunk_size)
 
 /* Ptr to next physical malloc_chunk. */
+/*! 获取下一个物理相邻的 chunk */
 #define next_chunk(p) ((mchunkptr) (((char *) (p)) + chunksize (p)))
 
 /* Size of the chunk below P.  Only valid if !prev_inuse (P).  */
@@ -1281,6 +1314,7 @@ nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 #define prev_chunk(p) ((mchunkptr) (((char *) (p)) - prev_size (p)))
 
 /* Treat space at ptr + offset as a chunk */
+/*! 获取指定偏移的 chunk */
 #define chunk_at_offset(p, s)  ((mchunkptr) (((char *) (p)) + (s)))
 
 /* extract p's inuse bit */
@@ -1370,6 +1404,19 @@ nextchunk-> +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
     to treat these as the fields of a malloc_chunk*.
  */
 
+/*!
+   ptmalloc 采用分箱式方法对空闲的 chunk 进行管理。
+   首先，它会根据空闲的 chunk 的大小以及使用状态将 chunk 初步分为 4 类：
+       fast bins
+       small bins
+       large bins
+       unsorted bin。
+    含义：
+       bin1 的 fd/bin2 的 prev_size
+       bin1 的 bk/bin2 的 size
+       bin2 的 fd/bin3 的 prev_size
+       bin2 的 bk/bin3 的 size
+ */
 typedef struct malloc_chunk *mbinptr;
 
 /* addressing -- note that bin_at(0) does not exist */
@@ -1457,6 +1504,7 @@ typedef struct malloc_chunk *mbinptr;
   ((in_smallbin_range (sz)) ? smallbin_index (sz) : largebin_index (sz))
 
 /* Take a chunk off a bin list.  */
+/*! 用来将一个双向链表（只存储空闲的 chunk）中的一个元素取出来，可能在以下地方使用 */
 static void
 unlink_chunk (mstate av, mchunkptr p)
 {
@@ -1661,7 +1709,11 @@ get_max_fast (void)
    use relaxed atomic accesses.
  */
 
-
+/*!
+    该结构用于管理堆，记录每个 arena 当前申请的内存的具体状态，比如说是否有空闲 chunk，有什么大小的空闲 chunk 等等。
+    无论是 thread arena 还是 main arena，它们都只有一个 malloc state 结构。
+    由于 thread 的 arena 可能有多个，malloc state 结构会在最新申请的 arena 中。
+ */
 struct malloc_state
 {
   /* Serialize access.  */
@@ -1675,18 +1727,43 @@ struct malloc_state
   int have_fastchunks;
 
   /* Fastbins */
+  /*!
+     并不是所有的 chunk 被释放后就立即被放到 bin 中。
+     ptmalloc 为了提高分配的速度，会把一些小的 chunk 先放到 fast bins 的容器内。
+     而且，fastbin 容器中的 chunk 的使用标记总是被置位的，所以不满足上面的原则。
+   */
   mfastbinptr fastbinsY[NFASTBINS];
 
   /* Base of the topmost chunk -- not otherwise kept in a bin */
+  /*!
+      程序第一次进行 malloc 的时候，heap 会被分为两块，一块给用户，剩下的那块就是 top chunk。
+      其实，所谓的 top chunk 就是处于当前堆的物理地址最高的 chunk。
+      这个 chunk 不属于任何一个 bin，它的作用在于当所有的 bin 都无法满足用户请求的大小时，
+        如果其大小不小于指定的大小，就进行分配，并将剩下的部分作为新的 top chunk。
+      否则，就对 heap 进行扩展后再进行分配。在 main arena 中通过 sbrk 扩展 heap，
+        而在 thread arena 中通过 mmap 分配新的 heap。
+      top chunk 的 prev_inuse 比特位始终为 1，否则其前面的 chunk 就会被合并到 top chunk 中。
+   */
   mchunkptr top;
 
   /* The remainder from the most recent split of a small request */
+  /*! 最新的 chunk 分割之后剩下的那部分 */
   mchunkptr last_remainder;
 
   /* Normal bins packed as described above */
+  /*!
+     用于存储 unstored bin，small bins 和 large bins 的 chunk 链表。
+     1. 第一个为 unsorted bin，字如其面，这里面的 chunk 没有进行排序，存储的 chunk 比较杂。
+     2. 索引从 2 到 63 的 bin 称为 small bin，同一个 small bin 链表中的 chunk 的大小相同。
+        两个相邻索引的 small bin 链表中的 chunk 大小相差的字节数为 2 个机器字长，即 32 位相差 8 字节，64 位相差 16 字节。
+     3. small bins 后面的 bin 被称作 large bins。
+        large bins 中的每一个 bin 都包含一定范围内的 chunk，其中的 chunk 按 fd 指针的顺序从大到小排列。
+        相同大小的 chunk 同样按照最近使用顺序排列。
+   */
   mchunkptr bins[NBINS * 2 - 2];
 
   /* Bitmap of bins */
+  /*! ptmalloc 用一个 bit 来标识某一个 bin 中是否包含空闲 chunk 。 */
   unsigned int binmap[BINMAPSIZE];
 
   /* Linked list */
@@ -2901,6 +2978,11 @@ mremap_chunk (mchunkptr p, size_t new_size)
 
 /* We overlay this structure on the user-data portion of a chunk when
    the chunk is stored in the per-thread cache.  */
+/*!
+    用于链接空闲的 chunk 结构体，其中的 next 指针指向下一个大小相同的 chunk。
+    这里的 next 指向 chunk 的 user data，而 fastbin 的 fd 指向 chunk 开头的地址。
+    而且，tcache_entry 会复用空闲 chunk 的 user data 部分。
+ */
 typedef struct tcache_entry
 {
   struct tcache_entry *next;
@@ -2913,9 +2995,33 @@ typedef struct tcache_entry
    overall size low is mildly important.  Note that COUNTS and ENTRIES
    are redundant (we could have just counted the linked list each
    time), this is for performance reasons.  */
+/*!
+    每个 thread 都会维护一个 tcache_prethread_struct，
+      它是整个 tcache 的管理结构，一共有 TCACHE_MAX_BINS 个计数器和 TCACHE_MAX_BINS项 tcache_entry.
+    基本工作方式：
+       第一次 malloc 时，会先 malloc 一块内存用来存放 tcache_prethread_struct 。
+       free 内存，且 size 小于 small bin size 时
+         tcache 之前会放到 fastbin 或者 unsorted bin 中
+         tcache 后：
+           先放到对应的 tcache 中，直到 tcache 被填满（默认是 7 个）
+           tcache 被填满之后，再次 free 的内存和之前一样被放到 fastbin 或者 unsorted bin 中
+           tcache 中的 chunk 不会合并（不取消 inuse bit）
+       malloc 内存，且 size 在 tcache 范围内
+         先从 tcache 取 chunk，直到 tcache 为空
+         tcache 为空后，从 bin 中找
+         tcache 为空时，如果 fastbin/smallbin/unsorted bin 中有 size 符合的 chunk，
+           会先把 fastbin/smallbin/unsorted bin 中的 chunk 放到 tcache 中，
+           直到填满。之后再从 tcache 中取；因此 chunk 在 bin 中和 tcache 中的顺序会反过来
+ */
 typedef struct tcache_perthread_struct
 {
+  /*!
+      记录了 tcache_entry 链上空闲 chunk 的数目，每条链上最多可以有 7 个 chunk。
+   */
   char counts[TCACHE_MAX_BINS];
+  /*!
+      用单向链表的方式链接了相同大小的处于空闲状态（free 后）的 chunk，这一点上和 fastbin 很像。
+   */
   tcache_entry *entries[TCACHE_MAX_BINS];
 } tcache_perthread_struct;
 
@@ -3051,9 +3157,6 @@ __libc_malloc (size_t bytes)
   checked_request2size (bytes, tbytes);
   size_t tc_idx = csize2tidx (tbytes);
 
-#ifdef GRANDSTREAM_NETWORKS
-	glib_log(1, "request size: %ld, allocated size: %ld", bytes, tbytes);
-#endif
   MAYBE_INIT_TCACHE ();
 
   DIAG_PUSH_NEEDS_COMMENT;
@@ -3065,6 +3168,11 @@ __libc_malloc (size_t bytes)
       return tcache_get (tc_idx);
     }
   DIAG_POP_NEEDS_COMMENT;
+#endif
+
+#ifdef GRANDSTREAM_NETWORKS
+	glib_log(1, "request size: %ld, allocated size: %ld, tc_idx: %ld, mp_.tcache_bins: %ld, SINGLE_THREAD_P: %d",
+		bytes, tbytes, tc_idx, mp_.tcache_bins, SINGLE_THREAD_P);
 #endif
 
   if (SINGLE_THREAD_P)
@@ -3096,6 +3204,10 @@ __libc_malloc (size_t bytes)
 }
 libc_hidden_def (__libc_malloc)
 
+/*!
+    后向合并，合并物理相邻低地址空闲 chunk
+    前向合并，合并物理相邻高地址空闲 chunk（除了 top chunk）。
+ */
 void
 __libc_free (void *mem)
 {
@@ -3140,6 +3252,9 @@ __libc_free (void *mem)
 }
 libc_hidden_def (__libc_free)
 
+/*!
+    前向扩展，合并物理相邻高地址空闲 chunk（除了 top chunk）。
+ */
 void *
 __libc_realloc (void *oldmem, size_t bytes)
 {
@@ -3562,10 +3677,6 @@ _int_malloc (mstate av, size_t bytes)
 
 #if USE_TCACHE
   size_t tcache_unsorted_count;	    /* count of unsorted chunks processed */
-#endif
-
-#ifdef GRANDSTREAM_NETWORKS
-	glib_log(1, "_int_malloc enter!");
 #endif
 
   /*
@@ -4232,6 +4343,9 @@ _int_free (mstate av, mchunkptr p, int have_lock)
 
 	if (tcache->counts[tc_idx] < mp_.tcache_count)
 	  {
+#ifdef GRANDSTREAM_NETWORKS
+		glib_log(1, "Put user data to tcache entries, size: %ld, tc_idx: %ld", size, tc_idx);
+#endif
 	    tcache_put (p, tc_idx);
 	    return;
 	  }
@@ -4463,7 +4577,11 @@ _int_free (mstate av, mchunkptr p, int have_lock)
   fastbins.  So, instead, we need to use a minor variant of the same
   code.
 */
-
+/*!
+    malloc_consolidate 函数可以将 fastbin 中所有能和其它 chunk 合并的 chunk 合并在一起。
+    后向合并，合并物理相邻低地址空闲 chunk。
+    前向合并，合并物理相邻高地址空闲 chunk（除了 top chunk）。
+ */
 static void malloc_consolidate(mstate av)
 {
   mfastbinptr*    fb;                 /* current fastbin being consolidated */

@@ -38,7 +38,7 @@ static size_t series(size_t size)
     return count;
 }
 
-#define byte_aligned(size) (1 << series((size)))
+#define byte_aligned(size) size //(1 << series((size)))
 
 static void print_info()
 {
@@ -48,7 +48,7 @@ static void print_info()
         info.arena, info.fordblks, info.uordblks, info.keepcost, info.hblkhd, info.hblks);
 }
 
-#define ALLOC_TIME 1
+#define ALLOC_TIME 9
 
 static void *start_runtime(void *arg)
 {
@@ -77,6 +77,23 @@ static void *start_runtime(void *arg)
     log(1, "free finished\n");
 
     print_info();
+
+    log(1, "Again malloc and free!\n");
+    for(i = 0; i < ALLOC_TIME; i++) {
+        a[i] = (char *)malloc(byte_aligned(52722));
+        memset(a[i], 1, byte_aligned(52722));
+        malloc_size += byte_aligned(52722);
+        b[i] = (char *)malloc(byte_aligned(1));
+        memset(b[i], 1, byte_aligned(1));
+        malloc_size += byte_aligned(1);
+    }
+
+    log(1, "malloc finished, %d kB, %d, %d\n", malloc_size / 1024, sizeof(size_t), byte_aligned(52722));
+    for(i = ALLOC_TIME - 1; i >= 0; i--) {
+        free(a[i]);
+        free(b[i]);
+    }
+    log(1, "free finished\n");
 
     while (1) {
         sleep(2);
@@ -115,14 +132,14 @@ int main()
         free(a[i]);
         free(b[i]);
     }
-    log(1, "free finished\n");
+    log(1, "free finished, %d\n", ((4+16) & ~16));
 
     pthread_create(&thread, NULL, start_runtime, NULL);
     sleep(1);
 
     print_info();
 
-    malloc_trim(0);
+    //malloc_trim(0);
 
     print_info();
 
