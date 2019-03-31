@@ -662,6 +662,9 @@ heap_trim (heap_info *heap, size_t pad)
     return 0;
 
   /* Release in pagesize units and round down to the nearest page.  */
+#ifdef GRANDSTREAM_NETWORKS
+	glib_log(1, "Release in pagesize units and round down to the nearest page.");
+#endif
   extra = ALIGN_DOWN(top_area - pad, pagesz);
   if (extra == 0)
     return 0;
@@ -737,6 +740,9 @@ _int_new_arena (size_t size)
   __libc_lock_lock (list_lock);
 
   /* Add the new arena to the global list.  */
+#ifdef GRANDSTREAM_NETWORKS
+	glib_log(1, "Add the new arena[%p] to the global list[%p]!", a, &main_arena);
+#endif
   a->next = main_arena.next;
   /* FIXME: The barrier is an attempt to synchronize with read access
      in reused_arena, which does not acquire list_lock while

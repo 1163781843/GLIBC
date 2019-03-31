@@ -3072,6 +3072,9 @@ tcache_thread_shutdown (void)
   tcache = NULL;
   tcache_shutting_down = true;
 
+#ifdef GRANDSTREAM_NETWORKS
+	glib_log(1, "tcache_thread_shutdown enter!");
+#endif
   /* Free all of the entries and the tcache itself back to the arena
      heap for coalescing.  */
   for (i = 0; i < TCACHE_MAX_BINS; ++i)
@@ -3171,8 +3174,8 @@ __libc_malloc (size_t bytes)
 #endif
 
 #ifdef GRANDSTREAM_NETWORKS
-	glib_log(1, "request size: %ld, allocated size: %ld, tc_idx: %ld, mp_.tcache_bins: %ld, SINGLE_THREAD_P: %d",
-		bytes, tbytes, tc_idx, mp_.tcache_bins, SINGLE_THREAD_P);
+	//glib_log(1, "request size: %ld, allocated size: %ld, tc_idx: %ld, mp_.tcache_bins: %ld, SINGLE_THREAD_P: %d",
+		//bytes, tbytes, tc_idx, mp_.tcache_bins, SINGLE_THREAD_P);
 #endif
 
   if (SINGLE_THREAD_P)
@@ -4344,7 +4347,7 @@ _int_free (mstate av, mchunkptr p, int have_lock)
 	if (tcache->counts[tc_idx] < mp_.tcache_count)
 	  {
 #ifdef GRANDSTREAM_NETWORKS
-		glib_log(1, "Put user data to tcache entries, size: %ld, tc_idx: %ld", size, tc_idx);
+		//glib_log(1, "Put user data to tcache entries, size: %ld, tc_idx: %ld", size, tc_idx);
 #endif
 	    tcache_put (p, tc_idx);
 	    return;
@@ -4368,7 +4371,9 @@ _int_free (mstate av, mchunkptr p, int have_lock)
       && (chunk_at_offset(p, size) != av->top)
 #endif
       ) {
-
+#ifdef GRANDSTREAM_NETWORKS
+	//glib_log(1, "If eligible, place chunk on a fastbin so it can be found and used quickly in malloc.");
+#endif
     if (__builtin_expect (chunksize_nomask (chunk_at_offset (p, size))
 			  <= 2 * SIZE_SZ, 0)
 	|| __builtin_expect (chunksize (chunk_at_offset (p, size))
@@ -4434,7 +4439,9 @@ _int_free (mstate av, mchunkptr p, int have_lock)
   */
 
   else if (!chunk_is_mmapped(p)) {
-
+#ifdef GRANDSTREAM_NETWORKS
+	//glib_log(1, "Consolidate other non-mmapped chunks as they arrive.");
+#endif
     /* If we're single-threaded, don't lock the arena.  */
     if (SINGLE_THREAD_P)
       have_lock = true;
@@ -4466,6 +4473,9 @@ _int_free (mstate av, mchunkptr p, int have_lock)
 
     /* consolidate backward */
     if (!prev_inuse(p)) {
+#ifdef GRANDSTREAM_NETWORKS
+		glib_log(1, "consolidate backward chunk!");
+#endif
       prevsize = prev_size (p);
       size += prevsize;
       p = chunk_at_offset(p, -((long) prevsize));
@@ -4480,6 +4490,10 @@ _int_free (mstate av, mchunkptr p, int have_lock)
 
       /* consolidate forward */
       if (!nextinuse) {
+#ifdef GRANDSTREAM_NETWORKS
+		glib_log(1, "consolidate forward chunk!");
+#endif
+
 	unlink_chunk (av, nextchunk);
 	size += nextsize;
       } else
@@ -4490,7 +4504,9 @@ _int_free (mstate av, mchunkptr p, int have_lock)
 	not placed into regular bins until after they have
 	been given one chance to be used in malloc.
       */
-
+#ifdef GRANDSTREAM_NETWORKS
+		glib_log(1, "Place the chunk in unsorted chunk list.");
+#endif
       bck = unsorted_chunks(av);
       fwd = bck->fd;
       if (__glibc_unlikely (fwd->bk != bck))
