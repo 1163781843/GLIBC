@@ -3101,7 +3101,7 @@ tcache_init(void)
     return;
 
 #ifdef GRANDSTREAM_NETWORKS
-	glib_log(1, "%s enter!", __FUNCTION__);
+	//glib_log(1, "%s enter!", __FUNCTION__);
 #endif
 
   arena_get (ar_ptr, bytes);
@@ -5121,6 +5121,10 @@ __libc_mallinfo (void)
       __libc_lock_unlock (ar_ptr->mutex);
 
       ar_ptr = ar_ptr->next;
+#ifdef GRANDSTREAM_NETWORKS
+      m.arena_count++;
+#endif
+
     }
   while (ar_ptr != &main_arena);
 
@@ -5258,6 +5262,9 @@ do_set_arena_max (size_t value)
 {
   LIBC_PROBE (memory_mallopt_arena_max, 2, value, mp_.arena_max);
   mp_.arena_max = value;
+#ifdef GRANDSTREAM_NETWORKS
+  glib_log(1, "Arena max value: %lu", value);
+#endif
   return 1;
 }
 

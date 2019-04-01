@@ -27,12 +27,33 @@ static void __log(int level, const char *file, int line, const char *format, ...
 #define log(level, ...) \
     __log((level), __FILE__, __LINE__, __VA_ARGS__)
 
+#define MALLINFO_FORMAT "%50s: %lu (%lu KB)\n"
+
 static void print_info()
 {
     struct mallinfo info = mallinfo();
 
-    log(1, "Total malloc: %lu, total free: %lu, inuse heap: %lu, heap top: %lu, total mmap: %lu, mmap_cout: %d\n",
-        info.arena, info.fordblks, info.uordblks, info.keepcost, info.hblkhd, info.hblks);
+    log(1,
+        "\n\033[33;1m"MALLINFO_FORMAT
+        MALLINFO_FORMAT
+        MALLINFO_FORMAT
+        MALLINFO_FORMAT
+        MALLINFO_FORMAT
+        MALLINFO_FORMAT
+        MALLINFO_FORMAT
+        MALLINFO_FORMAT
+        MALLINFO_FORMAT
+        MALLINFO_FORMAT"\33[0m",
+        "Total arena number(include main and thread arena)", info.arena_count, info.arena_count / 1024,
+        "Non-mmapped space allocated (bytes)", info.arena, info.arena / 1024,
+        "Number of free chunks", info.ordblks, info.ordblks / 1024,
+        "Number of free fastbin blocks", info.smblks, info.smblks / 1024,
+        "Number of mmapped regions", info.hblks, info.hblks / 1024,
+        "Space allocated in mmapped regions (bytes)", info.hblkhd, info.hblkhd / 1024,
+        "Maximum total allocated space (bytes)", info.usmblks, info.usmblks / 1024,
+        "Space in freed fastbin blocks (bytes)", info.uordblks, info.uordblks / 1024,
+        "Total free space (bytes)", info.fordblks, info.fordblks / 1024,
+        "Top-most, releasable space (bytes)", info.keepcost, info.keepcost / 1024);
 }
 
 static void glib_log_fun(int level, const char *file, int line, const char *msg)
@@ -85,14 +106,15 @@ static void *tcache_thread(void *arg)
 {
     char *tcaches[TCACHE_BIN_ROW_SIZE][TCACHE_BIN_COL_SIZE];
 
+    sleep(60);
+
     tcache_malloc(tcaches);
     tcache_free(tcaches);
 
-    //tcache_malloc(tcaches);
-    //tcache_free(tcaches);
+    tcache_malloc(tcaches);
+    tcache_free(tcaches);
 
-    //getchar();
-    print_info();
+    getchar();
 }
 
 static void tcache_pthreads()
