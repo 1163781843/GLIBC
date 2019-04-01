@@ -4474,7 +4474,7 @@ _int_free (mstate av, mchunkptr p, int have_lock)
     /* consolidate backward */
     if (!prev_inuse(p)) {
 #ifdef GRANDSTREAM_NETWORKS
-		glib_log(1, "consolidate backward chunk!");
+		//glib_log(1, "consolidate backward chunk!");
 #endif
       prevsize = prev_size (p);
       size += prevsize;
@@ -4491,7 +4491,7 @@ _int_free (mstate av, mchunkptr p, int have_lock)
       /* consolidate forward */
       if (!nextinuse) {
 #ifdef GRANDSTREAM_NETWORKS
-		glib_log(1, "consolidate forward chunk!");
+		//glib_log(1, "consolidate forward chunk!");
 #endif
 
 	unlink_chunk (av, nextchunk);
@@ -4505,7 +4505,7 @@ _int_free (mstate av, mchunkptr p, int have_lock)
 	been given one chance to be used in malloc.
       */
 #ifdef GRANDSTREAM_NETWORKS
-		glib_log(1, "Place the chunk in unsorted chunk list.");
+		//glib_log(1, "Place the chunk in unsorted chunk list.");
 #endif
       bck = unsorted_chunks(av);
       fwd = bck->fd;
@@ -4558,6 +4558,9 @@ _int_free (mstate av, mchunkptr p, int have_lock)
 
       if (av == &main_arena) {
 #ifndef MORECORE_CANNOT_TRIM
+#ifdef GRANDSTREAM_NETWORKS
+	//glib_log(1, "Released memory and gives memory back to the system, top: %lu, trim_threshold: %lu!", chunksize(av->top), mp_.trim_threshold);
+#endif
 	if ((unsigned long)(chunksize(av->top)) >=
 	    (unsigned long)(mp_.trim_threshold))
 	  systrim(mp_.top_pad, av);
