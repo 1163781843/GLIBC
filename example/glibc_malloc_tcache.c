@@ -64,7 +64,7 @@ static void glib_log_fun(int level, const char *file, int line, const char *msg)
 #define TCACHE_BIN_ROW_SIZE 64
 #define TCACHE_BIN_COL_SIZE 7
 #define TCACHE_SIZE         (1 << 4)
-#define TCACHE_THREAD       2048
+#define TCACHE_THREAD       1
 
 static pthread_t tcache_threads[TCACHE_THREAD] = {-1};
 
