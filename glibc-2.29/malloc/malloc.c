@@ -2471,7 +2471,6 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
   /* Precondition: not enough current space to satisfy nb request */
   assert ((unsigned long) (old_size) < (unsigned long) (nb + MINSIZE));
 
-
   if (av != &main_arena)
     {
       heap_info *old_heap, *heap;
@@ -2610,6 +2609,7 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
         {
           if (mp_.sbrk_base == 0)
             mp_.sbrk_base = brk;
+
           av->system_mem += size;
 
           /*
@@ -2789,6 +2789,10 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
         }
     } /* if (av !=  &main_arena) */
 
+#ifdef GRANDSTREAM_NETWORKS
+  glib_log(1, "av->system_mem: %d, av->max_system_mem: %d, av->top: %p, chunksize(av->top): %d", av->system_mem, av->max_system_mem, av->top, chunksize(av->top));
+#endif
+
   if ((unsigned long) av->system_mem > (unsigned long) (av->max_system_mem))
     av->max_system_mem = av->system_mem;
   check_malloc_state (av);
@@ -2806,6 +2810,12 @@ sysmalloc (INTERNAL_SIZE_T nb, mstate av)
       set_head (p, nb | PREV_INUSE | (av != &main_arena ? NON_MAIN_ARENA : 0));
       set_head (remainder, remainder_size | PREV_INUSE);
       check_malloced_chunk (av, p, nb);
+
+#ifdef GRANDSTREAM_NETWORKS
+      glib_log(1, "av->system_mem: %d, av->max_system_mem: %d, av->top: %p, chunksize(av->top): %d, chunksize(p): %d, prev_size(p): %d",
+        av->system_mem, av->max_system_mem, av->top, chunksize(av->top), chunksize(p), prev_size(p));
+#endif
+
       return chunk2mem (p);
     }
 
@@ -3101,7 +3111,7 @@ tcache_init(void)
     return;
 
 #ifdef GRANDSTREAM_NETWORKS
-	//glib_log(1, "%s enter!", __FUNCTION__);
+	glib_log(1, "%s enter!", __FUNCTION__);
 #endif
 
   arena_get (ar_ptr, bytes);
@@ -3174,8 +3184,12 @@ __libc_malloc (size_t bytes)
 #endif
 
 #ifdef GRANDSTREAM_NETWORKS
-	//glib_log(1, "request size: %ld, allocated size: %ld, tc_idx: %ld, mp_.tcache_bins: %ld, SINGLE_THREAD_P: %d",
-		//bytes, tbytes, tc_idx, mp_.tcache_bins, SINGLE_THREAD_P);
+#if USE_TCACHE
+	glib_log(1, "request size: %ld, allocated size: %ld, tc_idx: %ld, mp_.tcache_bins: %ld, SINGLE_THREAD_P: %d",
+		bytes, tbytes, tc_idx, mp_.tcache_bins, SINGLE_THREAD_P);
+#else
+	//glib_log(1, "request size: %ld, SINGLE_THREAD_P: %d", bytes, SINGLE_THREAD_P);
+#endif
 #endif
 
   if (SINGLE_THREAD_P)
@@ -3719,6 +3733,11 @@ _int_malloc (mstate av, size_t bytes)
   while ((pp = catomic_compare_and_exchange_val_acq (fb, victim->fd, victim)) \
 	 != victim);					\
 
+#ifdef GRANDSTREAM_NETWORKS
+  glib_log(1, "MINSIZE: %d, bytes: %d, nb: %d, DEFAULT_MXFAST: %d, get_max_fast(): %ld, MIN_LARGE_SIZE: %d, av->system_mem: %d, chunksize(av->top): %d",
+    MINSIZE, bytes, nb, DEFAULT_MXFAST, get_max_fast(), MIN_LARGE_SIZE, av->system_mem, chunksize(av->top));
+#endif
+
   if ((unsigned long) (nb) <= (unsigned long) (get_max_fast ()))
     {
       idx = fastbin_index (nb);
@@ -4258,6 +4277,9 @@ _int_malloc (mstate av, size_t bytes)
 
           check_malloced_chunk (av, victim, nb);
           void *p = chunk2mem (victim);
+#ifdef GRANDSTREAM_NETWORKS
+          glib_log(1, "Split top chunk get '%d' bytes user space, chunksize(victim): %d", nb, chunksize(victim));
+#endif
           alloc_perturb (p, bytes);
           return p;
         }
@@ -4372,7 +4394,7 @@ _int_free (mstate av, mchunkptr p, int have_lock)
 #endif
       ) {
 #ifdef GRANDSTREAM_NETWORKS
-	//glib_log(1, "If eligible, place chunk on a fastbin so it can be found and used quickly in malloc.");
+	glib_log(1, "If eligible, place chunk on a fastbin so it can be found and used quickly in malloc.");
 #endif
     if (__builtin_expect (chunksize_nomask (chunk_at_offset (p, size))
 			  <= 2 * SIZE_SZ, 0)
@@ -4440,7 +4462,7 @@ _int_free (mstate av, mchunkptr p, int have_lock)
 
   else if (!chunk_is_mmapped(p)) {
 #ifdef GRANDSTREAM_NETWORKS
-	//glib_log(1, "Consolidate other non-mmapped chunks as they arrive.");
+	glib_log(1, "Consolidate other non-mmapped chunks as they arrive.");
 #endif
     /* If we're single-threaded, don't lock the arena.  */
     if (SINGLE_THREAD_P)
@@ -4474,7 +4496,7 @@ _int_free (mstate av, mchunkptr p, int have_lock)
     /* consolidate backward */
     if (!prev_inuse(p)) {
 #ifdef GRANDSTREAM_NETWORKS
-		//glib_log(1, "consolidate backward chunk!");
+		glib_log(1, "consolidate backward chunk!");
 #endif
       prevsize = prev_size (p);
       size += prevsize;
@@ -4491,7 +4513,7 @@ _int_free (mstate av, mchunkptr p, int have_lock)
       /* consolidate forward */
       if (!nextinuse) {
 #ifdef GRANDSTREAM_NETWORKS
-		//glib_log(1, "consolidate forward chunk!");
+		glib_log(1, "consolidate forward chunk!");
 #endif
 
 	unlink_chunk (av, nextchunk);
@@ -4505,7 +4527,7 @@ _int_free (mstate av, mchunkptr p, int have_lock)
 	been given one chance to be used in malloc.
       */
 #ifdef GRANDSTREAM_NETWORKS
-		//glib_log(1, "Place the chunk in unsorted chunk list.");
+		glib_log(1, "Place the chunk in unsorted chunk list.");
 #endif
       bck = unsorted_chunks(av);
       fwd = bck->fd;
@@ -4559,7 +4581,7 @@ _int_free (mstate av, mchunkptr p, int have_lock)
       if (av == &main_arena) {
 #ifndef MORECORE_CANNOT_TRIM
 #ifdef GRANDSTREAM_NETWORKS
-	//glib_log(1, "Released memory and gives memory back to the system, top: %lu, trim_threshold: %lu!", chunksize(av->top), mp_.trim_threshold);
+	glib_log(1, "Released memory and gives memory back to the system, top: %lu, trim_threshold: %lu!", chunksize(av->top), mp_.trim_threshold);
 #endif
 	if ((unsigned long)(chunksize(av->top)) >=
 	    (unsigned long)(mp_.trim_threshold))
