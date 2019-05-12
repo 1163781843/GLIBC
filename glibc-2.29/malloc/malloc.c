@@ -1519,6 +1519,11 @@ unlink_chunk (mstate av, mchunkptr p)
 
   fd->bk = bk;
   bk->fd = fd;
+
+#ifdef GRANDSTREAM_NETWORKS
+	//glib_log(1, "in_smallbin_range (chunksize_nomask (p)): %d, p->fd_nextsize: %p", in_smallbin_range (chunksize_nomask (p)), p->fd_nextsize);
+#endif
+
   if (!in_smallbin_range (chunksize_nomask (p)) && p->fd_nextsize != NULL)
     {
       if (p->fd_nextsize->bk_nextsize != p
@@ -3734,8 +3739,8 @@ _int_malloc (mstate av, size_t bytes)
 	 != victim);					\
 
 #ifdef GRANDSTREAM_NETWORKS
-  glib_log(1, "MINSIZE: %d, bytes: %d, nb: %d, DEFAULT_MXFAST: %d, get_max_fast(): %ld, MIN_LARGE_SIZE: %d, av->system_mem: %d, chunksize(av->top): %d",
-    MINSIZE, bytes, nb, DEFAULT_MXFAST, get_max_fast(), MIN_LARGE_SIZE, av->system_mem, chunksize(av->top));
+  glib_log(1, "MINSIZE: %d, bytes: %d, nb: %d, DEFAULT_MXFAST: %d, get_max_fast(): %ld, MIN_LARGE_SIZE: %d, av->system_mem: %d, chunksize(av->top): %d, MALLOC_ALIGNMENT: %d, MIN_CHUNK_SIZE: %d",
+    MINSIZE, bytes, nb, DEFAULT_MXFAST, get_max_fast(), MIN_LARGE_SIZE, av->system_mem, chunksize(av->top), MALLOC_ALIGNMENT, MIN_CHUNK_SIZE);
 #endif
 
   if ((unsigned long) (nb) <= (unsigned long) (get_max_fast ()))
@@ -3782,6 +3787,9 @@ _int_malloc (mstate av, size_t bytes)
 		}
 #endif
 	      void *p = chunk2mem (victim);
+#ifdef GRANDSTREAM_NETWORKS
+		  glib_log(1, "Alloc memory from fastbin, victim: %p, victim size: %d, idx: %d", victim, chunksize(victim), idx);
+#endif
 	      alloc_perturb (p, bytes);
 	      return p;
 	    }
@@ -3801,6 +3809,9 @@ _int_malloc (mstate av, size_t bytes)
       idx = smallbin_index (nb);
       bin = bin_at (av, idx);
 
+#ifdef GRANDSTREAM_NETWORKS
+	  //glib_log(1, "bin_at called, bin: %p, idx: %d", bin, idx);
+#endif
       if ((victim = last (bin)) != bin)
         {
           bck = victim->bk;
@@ -3840,6 +3851,10 @@ _int_malloc (mstate av, size_t bytes)
 	    }
 #endif
           void *p = chunk2mem (victim);
+#ifdef GRANDSTREAM_NETWORKS
+		  glib_log(1, "Alloc memory from smallbin, victim: %p, victim size: %d", victim, chunksize(victim));
+#endif
+
           alloc_perturb (p, bytes);
           return p;
         }
@@ -3941,6 +3956,10 @@ _int_malloc (mstate av, size_t bytes)
 
               check_malloced_chunk (av, victim, nb);
               void *p = chunk2mem (victim);
+#ifdef GRANDSTREAM_NETWORKS
+			  glib_log(1, "Alloc memory from unsortbin, victim: %p, victim size: %d", victim, chunksize(victim));
+#endif
+
               alloc_perturb (p, bytes);
               return p;
             }
@@ -3986,12 +4005,19 @@ _int_malloc (mstate av, size_t bytes)
             {
               victim_index = smallbin_index (size);
               bck = bin_at (av, victim_index);
+#ifdef GRANDSTREAM_NETWORKS
+	  		  glib_log(1, "Push chunk to smallbin, bck: %p, victim_index: %d, size: %d", bck, victim_index, size);
+#endif
               fwd = bck->fd;
             }
           else
             {
               victim_index = largebin_index (size);
               bck = bin_at (av, victim_index);
+#ifdef GRANDSTREAM_NETWORKS
+			  glib_log(1, "Push chunk to largebin, bck: %p, victim_index: %d, size: %d", bck, victim_index, size);
+#endif
+
               fwd = bck->fd;
 
               /* maintain large bins in sorted order */
@@ -4077,6 +4103,9 @@ _int_malloc (mstate av, size_t bytes)
       if (!in_smallbin_range (nb))
         {
           bin = bin_at (av, idx);
+#ifdef GRANDSTREAM_NETWORKS
+		  //glib_log(1, "bin_at called, bin: %p, idx: %d", bin, idx);
+#endif
 
           /* skip scan if empty or largest chunk is too small */
           if ((victim = first (bin)) != bin
@@ -4131,6 +4160,10 @@ _int_malloc (mstate av, size_t bytes)
                 }
               check_malloced_chunk (av, victim, nb);
               void *p = chunk2mem (victim);
+#ifdef GRANDSTREAM_NETWORKS
+			  glib_log(1, "Alloc memory from largebin, victim: %p, victim size: %d", victim, chunksize(victim));
+#endif
+
               alloc_perturb (p, bytes);
               return p;
             }
@@ -4149,6 +4182,10 @@ _int_malloc (mstate av, size_t bytes)
 
       ++idx;
       bin = bin_at (av, idx);
+#ifdef GRANDSTREAM_NETWORKS
+	  //glib_log(1, "bin_at called, bin: %p, idx: %d", bin, idx);
+#endif
+
       block = idx2block (idx);
       map = av->binmap[block];
       bit = idx2bit (idx);
@@ -4166,6 +4203,10 @@ _int_malloc (mstate av, size_t bytes)
               while ((map = av->binmap[block]) == 0);
 
               bin = bin_at (av, (block << BINMAPSHIFT));
+#ifdef GRANDSTREAM_NETWORKS
+			  //glib_log(1, "bin_at called, bin: %p, (block << BINMAPSHIFT): %d", bin, (block << BINMAPSHIFT));
+#endif
+
               bit = 1;
             }
 
@@ -4239,6 +4280,10 @@ _int_malloc (mstate av, size_t bytes)
                 }
               check_malloced_chunk (av, victim, nb);
               void *p = chunk2mem (victim);
+#ifdef GRANDSTREAM_NETWORKS
+			  glib_log(1, "Alloc memory from bins and binmap, victim: %p, victim size: %d, bin_index: %d", victim, chunksize(victim), bin_index(chunksize(victim)));
+#endif
+
               alloc_perturb (p, bytes);
               return p;
             }
@@ -4278,7 +4323,7 @@ _int_malloc (mstate av, size_t bytes)
           check_malloced_chunk (av, victim, nb);
           void *p = chunk2mem (victim);
 #ifdef GRANDSTREAM_NETWORKS
-          glib_log(1, "Split top chunk get '%d' bytes user space, chunksize(victim): %d", nb, chunksize(victim));
+          //glib_log(1, "Split top chunk get '%d' bytes user space, chunksize(victim): %d, victim:%p, av->top: %p", nb, chunksize(victim), victim, av->top);
 #endif
           alloc_perturb (p, bytes);
           return p;
@@ -4393,9 +4438,6 @@ _int_free (mstate av, mchunkptr p, int have_lock)
       && (chunk_at_offset(p, size) != av->top)
 #endif
       ) {
-#ifdef GRANDSTREAM_NETWORKS
-	glib_log(1, "If eligible, place chunk on a fastbin so it can be found and used quickly in malloc.");
-#endif
     if (__builtin_expect (chunksize_nomask (chunk_at_offset (p, size))
 			  <= 2 * SIZE_SZ, 0)
 	|| __builtin_expect (chunksize (chunk_at_offset (p, size))
@@ -4434,6 +4476,11 @@ _int_free (mstate av, mchunkptr p, int have_lock)
 	  malloc_printerr ("double free or corruption (fasttop)");
 	p->fd = old;
 	*fb = p;
+#ifdef GRANDSTREAM_NETWORKS
+	glib_log(1, "fastbin, idx: %d, size: %d, NFASTBINS: %d, request2size(MAX_FAST_SIZE): %d, p->fd: %p",
+		idx, size, NFASTBINS, request2size(MAX_FAST_SIZE), p->fd);
+#endif
+
       }
     else
       do
@@ -4461,9 +4508,6 @@ _int_free (mstate av, mchunkptr p, int have_lock)
   */
 
   else if (!chunk_is_mmapped(p)) {
-#ifdef GRANDSTREAM_NETWORKS
-	glib_log(1, "Consolidate other non-mmapped chunks as they arrive.");
-#endif
     /* If we're single-threaded, don't lock the arena.  */
     if (SINGLE_THREAD_P)
       have_lock = true;
@@ -4491,15 +4535,20 @@ _int_free (mstate av, mchunkptr p, int have_lock)
 	|| __builtin_expect (nextsize >= av->system_mem, 0))
       malloc_printerr ("free(): invalid next size (normal)");
 
+#ifdef GRANDSTREAM_NETWORKS
+	glib_log(1, "Current chunk: %p, size: %d, nextchunk: %p, nextsize: %d, prev_size: %d", p, chunksize(p), nextchunk, nextsize, prev_size(p));
+#endif
+
     free_perturb (chunk2mem(p), size - 2 * SIZE_SZ);
 
     /* consolidate backward */
     if (!prev_inuse(p)) {
-#ifdef GRANDSTREAM_NETWORKS
-		glib_log(1, "consolidate backward chunk!");
-#endif
       prevsize = prev_size (p);
       size += prevsize;
+#ifdef GRANDSTREAM_NETWORKS
+	  glib_log(1, "consolidate backward chunk: %p, prevsize: %d", p, prevsize);
+#endif
+
       p = chunk_at_offset(p, -((long) prevsize));
       if (__glibc_unlikely (chunksize(p) != prevsize))
         malloc_printerr ("corrupted size vs. prev_size while consolidating");
@@ -4513,7 +4562,7 @@ _int_free (mstate av, mchunkptr p, int have_lock)
       /* consolidate forward */
       if (!nextinuse) {
 #ifdef GRANDSTREAM_NETWORKS
-		glib_log(1, "consolidate forward chunk!");
+		glib_log(1, "consolidate forward chunk, p: %p", p);
 #endif
 
 	unlink_chunk (av, nextchunk);
@@ -4526,11 +4575,13 @@ _int_free (mstate av, mchunkptr p, int have_lock)
 	not placed into regular bins until after they have
 	been given one chance to be used in malloc.
       */
-#ifdef GRANDSTREAM_NETWORKS
-		glib_log(1, "Place the chunk in unsorted chunk list.");
-#endif
       bck = unsorted_chunks(av);
       fwd = bck->fd;
+#ifdef GRANDSTREAM_NETWORKS
+	  glib_log(1, "Unsorted chunk list: %p, chunksize(p): %d, bck: %p, fwd: %p",
+	  	p, chunksize(p), bck, fwd);
+#endif
+
       if (__glibc_unlikely (fwd->bk != bck))
 	malloc_printerr ("free(): corrupted unsorted chunks");
       p->fd = fwd;
@@ -5083,6 +5134,12 @@ int_mallinfo (mstate av, struct mallinfo *m)
   avail = chunksize (av->top);
   nblocks = 1;  /* top always exists */
 
+#ifdef GRANDSTREAM_NETWORKS
+  int unsortbinblocks = 0;
+  int smallbinblocks = 0;
+  int largebinblocks = 0;
+#endif
+
   /* traverse fastbins */
   nfastblocks = 0;
   fastavail = 0;
@@ -5106,6 +5163,20 @@ int_mallinfo (mstate av, struct mallinfo *m)
         {
           ++nblocks;
           avail += chunksize (p);
+#ifdef GRANDSTREAM_NETWORKS
+		  if (1 == i)
+		  {
+		    unsortbinblocks += chunksize (p);
+		  }
+		  else if (i >= 2 && i <= 63)
+		  {
+		    smallbinblocks += chunksize (p);
+		  }
+		  else
+		  {
+		    largebinblocks += chunksize (p);
+		  }
+#endif
         }
     }
 
@@ -5115,6 +5186,13 @@ int_mallinfo (mstate av, struct mallinfo *m)
   m->uordblks += av->system_mem - avail;
   m->arena += av->system_mem;
   m->fsmblks += fastavail;
+
+#ifdef GRANDSTREAM_NETWORKS
+  m->unsortbins = unsortbinblocks;
+  m->smallbins = smallbinblocks;
+  m->largebins = largebinblocks;
+#endif
+
   if (av == &main_arena)
     {
       m->hblks = mp_.n_mmaps;

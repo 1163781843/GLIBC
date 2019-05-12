@@ -104,6 +104,9 @@ struct mallinfo
   int keepcost; /* top-most, releasable (via malloc_trim) space */
 #ifdef GRANDSTREAM_NETWORKS
   int arena_count;
+  int unsortbins;
+  int smallbins;
+  int largebins;
 #endif
 };
 
