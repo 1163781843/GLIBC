@@ -52,7 +52,7 @@ struct log_var_s {
 #define LOG_INITIALIZED_NOT_ENABLED 1U
 #define LOG_ENABLED 2U
 
-#define LOG_VAR_INIT(name_str) {ATOMIC_INIT(LOG_NOT_INITIALIZED), name_str}
+#define LOG_VAR_INIT(name_str) {ATOMIC_INIT(LOG_ENABLED), name_str}
 
 /*
  * Returns the value we should assume for state (which is not necessarily
@@ -85,6 +85,37 @@ if (config_log) {							\
  * the "...", we accept the format string there, and require that the first
  * argument in this "..." is a const char *.
  */
+
+#ifdef GRANDSTREAM_NETWORKS
+static inline void
+log_impl_varargs(const char *name, const char *file, int line, ...) {
+	char buf[JEMALLOC_LOG_BUFSIZE];
+	va_list ap;
+
+	va_start(ap, line);
+	const char *format = va_arg(ap, const char *);
+	size_t dst_offset = 0;
+	dst_offset += malloc_snprintf(buf, JEMALLOC_LOG_BUFSIZE, "%s: ", name);
+	dst_offset += malloc_vsnprintf(buf + dst_offset,
+	    JEMALLOC_LOG_BUFSIZE - dst_offset, format, ap);
+	dst_offset += malloc_snprintf(buf + dst_offset,
+	    JEMALLOC_LOG_BUFSIZE - dst_offset, "\n");
+	va_end(ap);
+
+	jelogger(1, file, line, buf);
+}
+
+/* Call as log("log.var.str", "format_string %d", arg_for_format_string); */
+#define LOG(log_var_str, ...)						\
+do {									\
+	static log_var_t log_var = LOG_VAR_INIT(log_var_str);		\
+	log_do_begin(log_var)						\
+		log_impl_varargs((log_var).name, __FILE__, __LINE__, __VA_ARGS__);		\
+	log_do_end(log_var)						\
+} while (0)
+
+#else
+
 static inline void
 log_impl_varargs(const char *name, ...) {
 	char buf[JEMALLOC_LOG_BUFSIZE];
@@ -111,5 +142,6 @@ do {									\
 		log_impl_varargs((log_var).name, __VA_ARGS__);		\
 	log_do_end(log_var)						\
 } while (0)
+#endif
 
 #endif /* JEMALLOC_INTERNAL_LOG_H */

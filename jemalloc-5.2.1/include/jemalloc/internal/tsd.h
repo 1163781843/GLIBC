@@ -13,6 +13,10 @@
 #include "jemalloc/internal/util.h"
 #include "jemalloc/internal/witness.h"
 
+#ifdef GRANDSTREAM_NETWORKS
+#include "jemalloc/internal/jelog.h"
+#endif
+
 /*
  * Thread-Specific-Data layout
  * --- data accessed on tcache fast path: state, rtree_ctx, stats, prof ---
