@@ -6,6 +6,10 @@
 #include "jemalloc/internal/extent_dss.h"
 #include "jemalloc/internal/spin.h"
 
+#ifdef GRANDSTREAM_NETWORKS
+#include "jemalloc/internal/jelog.h"
+#endif
+
 /******************************************************************************/
 /* Data. */
 
@@ -266,6 +270,10 @@ extent_dss_boot(void) {
 	atomic_store_b(&dss_extending, false, ATOMIC_RELAXED);
 	atomic_store_b(&dss_exhausted, dss_base == (void *)-1, ATOMIC_RELAXED);
 	atomic_store_p(&dss_max, dss_base, ATOMIC_RELAXED);
+
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "extent_dss_boot start, dss_base: %p\n", dss_base);
+#endif
 }
 
 /******************************************************************************/

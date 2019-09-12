@@ -349,6 +349,10 @@ JEMALLOC_ALWAYS_INLINE tsd_t *
 tsd_fetch_impl(bool init, bool minimal) {
 	tsd_t *tsd = tsd_get(init);
 
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "%s enter ...\n", __FUNCTION__);
+#endif
+
 	if (!init && tsd_get_allocates() && tsd == NULL) {
 		return NULL;
 	}
@@ -366,6 +370,10 @@ tsd_fetch_impl(bool init, bool minimal) {
 /* Get a minimal TSD that requires no cleanup.  See comments in free(). */
 JEMALLOC_ALWAYS_INLINE tsd_t *
 tsd_fetch_min(void) {
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "%s enter ...\n", __FUNCTION__);
+#endif
+
 	return tsd_fetch_impl(true, true);
 }
 
@@ -379,10 +387,27 @@ tsd_internal_fetch(void) {
 	return tsd;
 }
 
+#ifdef GRANDSTREAM_NETWORKS
 JEMALLOC_ALWAYS_INLINE tsd_t *
-tsd_fetch(void) {
+__tsd_fetch(const char *file, int line)
+{
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "[%s:%d] %s enter ...\n", file, line, __FUNCTION__);
+#endif
+
 	return tsd_fetch_impl(true, false);
 }
+
+#define tsd_fetch() __tsd_fetch(__FILE__, __LINE__)
+
+#else
+
+JEMALLOC_ALWAYS_INLINE tsd_t *
+tsd_fetch(void)
+{
+	return tsd_fetch_impl(true, false);
+}
+#endif
 
 static inline bool
 tsd_nominal(tsd_t *tsd) {

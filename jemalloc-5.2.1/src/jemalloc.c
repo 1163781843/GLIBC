@@ -326,6 +326,10 @@ arena_init_locked(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		narenas_total_inc();
 	}
 
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "Create a new arena and insert it into the arenas array at index ind[%d]!\n", ind);
+#endif
+
 	/*
 	 * Another thread may have already initialized arenas[ind] if it's an
 	 * auto arena.
@@ -337,6 +341,9 @@ arena_init_locked(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 	}
 
 	/* Actually initialize the arena. */
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "Actually initialize the arena!\n");
+#endif
 	arena = arena_new(tsdn, ind, extent_hooks);
 
 	return arena;
@@ -1463,6 +1470,9 @@ malloc_init_hard_needed(void) {
 #ifdef JEMALLOC_THREADED_INIT
 	if (malloc_initializer != NO_INITIALIZER && !IS_INITIALIZER) {
 		/* Busy-wait until the initializing thread completes. */
+#ifdef GRANDSTREAM_NETWORKS
+		jelog(1, "Busy-wait until the initializing thread completes!\n");
+#endif
 		spin_t spinner = SPIN_INITIALIZER;
 		do {
 			malloc_mutex_unlock(TSDN_NULL, &init_lock);
@@ -1493,6 +1503,9 @@ malloc_init_hard_a0_locked() {
 	 */
 	sc_boot(&sc_data);
 	unsigned bin_shard_sizes[SC_NBINS];
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "Bin shard sizes, SC_NBINS: %d, config_prof: %d\n", SC_NBINS, config_prof);
+#endif
 	bin_shard_sizes_boot(bin_shard_sizes);
 	/*
 	 * prof_boot0 only initializes opt_prof_prefix.  We need to do it before
@@ -1550,6 +1563,11 @@ malloc_init_hard_a0_locked() {
 	 * Initialize one arena here.  The rest are lazily created in
 	 * arena_choose_hard().
 	 */
+
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "Initialize one arena here.  The rest are lazily created in arena_choose_hard()!\n");
+#endif
+
 	if (arena_init(TSDN_NULL, 0, (extent_hooks_t *)&extent_hooks_default)
 	    == NULL) {
 		return true;
@@ -1697,6 +1715,10 @@ malloc_init_narenas(void) {
 	}
 	manual_arena_base = narenas_total_get();
 
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "manual_arena_base: %d\n", manual_arena_base);
+#endif
+
 	return false;
 }
 
@@ -1785,6 +1807,11 @@ malloc_init_hard(void) {
 	malloc_tsd_boot1();
 	/* Update TSD after tsd_boot1. */
 	tsd = tsd_fetch();
+
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "opt_background_thread: %d\n", opt_background_thread);
+#endif
+
 	if (opt_background_thread) {
 		assert(have_background_thread);
 		/*
@@ -2146,6 +2173,9 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 		 * alignment path, imalloc_no_sample ignores ind and size
 		 * (relying only on usize).
 		 */
+#ifdef GRANDSTREAM_NETWORKS
+		jelog(1, "size: %ld, usize: %ld, ind: %ld\n", size, usize, ind);
+#endif
 		allocation = imalloc_no_sample(sopts, dopts, tsd, size, usize,
 		    ind);
 		if (unlikely(allocation == NULL)) {
@@ -2255,6 +2285,9 @@ imalloc(static_opts_t *sopts, dynamic_opts_t *dopts) {
 		/* Fast and common path. */
 		tsd_assert_fast(tsd);
 		sopts->slow = false;
+#ifdef GRANDSTREAM_NETWORKS
+		jelog(1, "Fast and common path.\n");
+#endif
 		return imalloc_body(sopts, dopts, tsd);
 	} else {
 		if (!tsd_get_allocates() && !imalloc_init_check(sopts, dopts)) {
@@ -2321,20 +2354,29 @@ JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN
 void JEMALLOC_NOTHROW *
 JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(1)
 je_malloc(size_t size) {
-	LOG("core.malloc.entry", "size: %zu", size);
+	LOG("core.malloc.entry", "size: %zu, tsd_get_allocates(): %d", size, tsd_get_allocates());
 
 	if (tsd_get_allocates() && unlikely(!malloc_initialized())) {
+#ifdef GRANDSTREAM_NETWORKS
+		jelog(1, "Call malloc_default enter ...\n");
+#endif
 		return malloc_default(size);
 	}
 
 	tsd_t *tsd = tsd_get(false);
 	if (unlikely(!tsd || !tsd_fast(tsd) || (size > SC_LOOKUP_MAXCLASS))) {
+#ifdef GRANDSTREAM_NETWORKS
+		jelog(1, "Call malloc_default enter, tsd: %p, tsd_fast(tsd): %d\n", tsd, tsd_fast(tsd));
+#endif
 		return malloc_default(size);
 	}
 
 	tcache_t *tcache = tsd_tcachep_get(tsd);
 
 	if (unlikely(ticker_trytick(&tcache->gc_ticker))) {
+#ifdef GRANDSTREAM_NETWORKS
+		jelog(1, "Call malloc_default enter ...\n");
+#endif
 		return malloc_default(size);
 	}
 
@@ -2362,6 +2404,10 @@ je_malloc(size_t size) {
 			if (!prof_active) {
 				tsd_bytes_until_sample_set(tsd, SSIZE_MAX);
 			}
+#ifdef GRANDSTREAM_NETWORKS
+			jelog(1, "Call malloc_default enter ...\n");
+#endif
+
 			return malloc_default(size);
 		}
 	}
@@ -2384,6 +2430,10 @@ je_malloc(size_t size) {
 		/* Fastpath success */
 		return ret;
 	}
+
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "Call malloc_default enter ...\n");
+#endif
 
 	return malloc_default(size);
 }
@@ -3772,6 +3822,10 @@ je_malloc_usable_size(JEMALLOC_USABLE_SIZE_CONST void *ptr) {
 JEMALLOC_ATTR(constructor)
 static void
 jemalloc_constructor(void) {
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "jemalloc_constructor init malloc!\n");
+#endif
+
 	malloc_init();
 }
 #endif

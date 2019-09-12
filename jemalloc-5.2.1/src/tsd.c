@@ -221,6 +221,11 @@ tsd_data_init(tsd_t *tsd) {
 	 * We initialize the rtree context first (before the tcache), since the
 	 * tcache initialization depends on it.
 	 */
+
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "We initialize the rtree context first (before the tcache), since the tcache initialization depends on it.\n");
+#endif
+
 	rtree_ctx_data_init(tsd_rtree_ctxp_get_unsafe(tsd));
 
 	/*
@@ -269,6 +274,10 @@ tsd_data_init_nocleanup(tsd_t *tsd) {
 tsd_t *
 tsd_fetch_slow(tsd_t *tsd, bool minimal) {
 	assert(!tsd_fast(tsd));
+
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "%s enter, tsd->state: %d, minimal: %d\n", __FUNCTION__, tsd_state_get(tsd), minimal);
+#endif
 
 	if (tsd_state_get(tsd) == tsd_state_nominal_slow) {
 		/*

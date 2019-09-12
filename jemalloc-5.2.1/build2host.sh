@@ -6,10 +6,10 @@
 #########################################################################
 #!/bin/bash
 
-export CFLAGS="\
+export CFLAGS=" \
     -DGRANDSTREAM_NETWORKS"
 
 ./configure \
-    --prefix=/data/jemalloc-5.2.1 \
+    --prefix=/data/mem-management \
     --enable-log
 

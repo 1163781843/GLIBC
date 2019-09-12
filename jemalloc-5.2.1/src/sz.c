@@ -1,6 +1,10 @@
 #include "jemalloc/internal/jemalloc_preamble.h"
 #include "jemalloc/internal/sz.h"
 
+#ifdef GRANDSTREAM_NETWORKS
+#include "jemalloc/internal/jelog.h"
+#endif
+
 JEMALLOC_ALIGNED(CACHELINE)
 size_t sz_pind2sz_tab[SC_NPSIZES+1];
 
@@ -29,6 +33,10 @@ sz_boot_index2size_tab(const sc_data_t *sc_data) {
 		const sc_t *sc = &sc_data->sc[i];
 		sz_index2size_tab[i] = (ZU(1) << sc->lg_base)
 		    + (ZU(sc->ndelta) << (sc->lg_delta));
+#ifdef GRANDSTREAM_NETWORKS
+		jelog(1, "Boot index2size table, SC_NSIZES: %ld, sz_index2size_tab[%d]: %d",
+			SC_NSIZES, i, sz_index2size_tab[i]);
+#endif
 	}
 }
 
@@ -52,6 +60,10 @@ sz_boot_size2index_tab(const sc_data_t *sc_data) {
 				   >> SC_LG_TINY_MIN);
 		for (; dst_ind <= max_ind && dst_ind < dst_max; dst_ind++) {
 			sz_size2index_tab[dst_ind] = sc_ind;
+#ifdef GRANDSTREAM_NETWORKS
+			jelog(1, "Boot size2index table, dst_max: %ld, sz_size2index_tab[%d]: %d",
+				dst_max, dst_ind, sz_size2index_tab[dst_ind]);
+#endif
 		}
 	}
 }

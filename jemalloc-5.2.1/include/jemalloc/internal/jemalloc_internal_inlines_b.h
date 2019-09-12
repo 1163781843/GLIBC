@@ -3,6 +3,10 @@
 
 #include "jemalloc/internal/rtree.h"
 
+#ifdef GRANDSTREAM_NETWORKS
+#include "jemalloc/internal/jelog.h"
+#endif
+
 /* Choose an arena based on a per-thread value. */
 static inline arena_t *
 arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal) {
@@ -60,6 +64,9 @@ arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal) {
 
 static inline arena_t *
 arena_choose(tsd_t *tsd, arena_t *arena) {
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "%s enter ...\n", __FUNCTION__);
+#endif
 	return arena_choose_impl(tsd, arena, false);
 }
 

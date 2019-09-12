@@ -88,11 +88,11 @@ if (config_log) {							\
 
 #ifdef GRANDSTREAM_NETWORKS
 static inline void
-log_impl_varargs(const char *name, const char *file, int line, ...) {
+log_impl_varargs(const char *file, int line, const char *name, ...) {
 	char buf[JEMALLOC_LOG_BUFSIZE];
 	va_list ap;
 
-	va_start(ap, line);
+	va_start(ap, name);
 	const char *format = va_arg(ap, const char *);
 	size_t dst_offset = 0;
 	dst_offset += malloc_snprintf(buf, JEMALLOC_LOG_BUFSIZE, "%s: ", name);
@@ -106,12 +106,12 @@ log_impl_varargs(const char *name, const char *file, int line, ...) {
 }
 
 /* Call as log("log.var.str", "format_string %d", arg_for_format_string); */
-#define LOG(log_var_str, ...)						\
-do {									\
-	static log_var_t log_var = LOG_VAR_INIT(log_var_str);		\
-	log_do_begin(log_var)						\
-		log_impl_varargs((log_var).name, __FILE__, __LINE__, __VA_ARGS__);		\
-	log_do_end(log_var)						\
+#define LOG(log_var_str, ...)												\
+do {																		\
+	static log_var_t log_var = LOG_VAR_INIT(log_var_str);					\
+	log_do_begin(log_var)													\
+		log_impl_varargs(__FILE__, __LINE__, (log_var).name, __VA_ARGS__);	\
+	log_do_end(log_var)														\
 } while (0)
 
 #else

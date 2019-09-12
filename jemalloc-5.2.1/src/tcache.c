@@ -448,6 +448,10 @@ tsd_tcache_data_init(tsd_t *tsd) {
 	/* Avoid false cacheline sharing. */
 	size = sz_sa2u(size, CACHELINE);
 
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "Initialize auto tcache (embedded in TSD).\n");
+#endif
+
 	void *avail_array = ipallocztm(tsd_tsdn(tsd), size, CACHELINE, true,
 	    NULL, true, arena_get(TSDN_NULL, 0, true));
 	if (avail_array == NULL) {
