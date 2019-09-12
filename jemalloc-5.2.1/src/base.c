@@ -37,6 +37,12 @@ base_map(tsdn_t *tsdn, extent_hooks_t *extent_hooks, unsigned ind, size_t size) 
 	/* Use huge page sizes and alignment regardless of opt_metadata_thp. */
 	assert(size == HUGEPAGE_CEILING(size));
 	size_t alignment = HUGEPAGE;
+
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "extent_hooks: %p, extent_hooks_default: %p, size: %ld, alignment: %d\n",
+		extent_hooks, &extent_hooks_default, size, alignment);
+#endif
+
 	if (extent_hooks == &extent_hooks_default) {
 		addr = extent_alloc_mmap(NULL, size, alignment, &zero, &commit);
 	} else {
@@ -436,6 +442,10 @@ base_alloc_impl(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment,
 	if (extent == NULL) {
 		/* Try to allocate more space. */
 		extent = base_extent_alloc(tsdn, base, usize, alignment);
+#ifdef GRANDSTREAM_NETWORKS
+		jelog(1, "Try to allocate more space, extent->e_addr: %p\n", extent->e_addr);
+#endif
+
 	}
 	void *ret;
 	if (extent == NULL) {

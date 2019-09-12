@@ -5,7 +5,7 @@
 
 static void *memory_malloc(void *userdata)
 {
-    char *memory[1024] = {0};
+    char *memory[10] = {0};
     int i;
 
     printf("memory_malloc enter, sizeof(memory) / sizeof(memory[0]): %ld\n", sizeof(memory) / sizeof(memory[0]));
@@ -22,9 +22,14 @@ int main(int argc, char **argv)
 {
     pthread_t thread1;
 
-    //pthread_create(&thread1, NULL, memory_malloc, NULL);
+#if 0
+    int index;
 
-    //sleep(5);
+    for (index = 0; index < 10; index++) {
+        pthread_create(&thread1, NULL, memory_malloc, NULL);
+    }
+#endif
+
     memory_malloc(NULL);
 
     while (1) {

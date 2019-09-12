@@ -2354,7 +2354,7 @@ JEMALLOC_EXPORT JEMALLOC_ALLOCATOR JEMALLOC_RESTRICT_RETURN
 void JEMALLOC_NOTHROW *
 JEMALLOC_ATTR(malloc) JEMALLOC_ALLOC_SIZE(1)
 je_malloc(size_t size) {
-	LOG("core.malloc.entry", "size: %zu, tsd_get_allocates(): %d", size, tsd_get_allocates());
+	LOG("core.malloc.entry", "size: %zu", size);
 
 	if (tsd_get_allocates() && unlikely(!malloc_initialized())) {
 #ifdef GRANDSTREAM_NETWORKS

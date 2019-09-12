@@ -276,7 +276,7 @@ tsd_fetch_slow(tsd_t *tsd, bool minimal) {
 	assert(!tsd_fast(tsd));
 
 #ifdef GRANDSTREAM_NETWORKS
-	jelog(1, "%s enter, tsd->state: %d, minimal: %d\n", __FUNCTION__, tsd_state_get(tsd), minimal);
+	jelog(1, "%s enter, tsd->state: %d, minimal: %d, tsd_booted: %d\n", __FUNCTION__, tsd_state_get(tsd), minimal, tsd_booted);
 #endif
 
 	if (tsd_state_get(tsd) == tsd_state_nominal_slow) {

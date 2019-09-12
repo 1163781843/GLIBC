@@ -160,6 +160,10 @@ arena_malloc(tsdn_t *tsdn, arena_t *arena, size_t size, szind_t ind, bool zero,
     tcache_t *tcache, bool slow_path) {
 	assert(!tsdn_null(tsdn) || tcache == NULL);
 
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "size: %ld, SC_SMALL_MAXCLASS: %ld, tcache_maxclass: %ld\n", size, SC_SMALL_MAXCLASS, tcache_maxclass);
+#endif
+
 	if (likely(tcache != NULL)) {
 		if (likely(size <= SC_SMALL_MAXCLASS)) {
 			return tcache_alloc_small(tsdn_tsd(tsdn), arena,
