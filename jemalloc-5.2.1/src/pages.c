@@ -129,6 +129,10 @@ os_pages_unmap(void *addr, size_t size) {
 	assert(ALIGNMENT_ADDR2BASE(addr, os_page) == addr);
 	assert(ALIGNMENT_CEILING(size, os_page) == size);
 
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "os_pages_unmap, addr[%p], size: %ld\n", addr, size);
+#endif
+
 #ifdef _WIN32
 	if (VirtualFree(addr, 0, MEM_RELEASE) == 0)
 #else

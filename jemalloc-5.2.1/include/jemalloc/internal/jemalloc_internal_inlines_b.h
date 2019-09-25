@@ -16,8 +16,15 @@ arena_choose_impl(tsd_t *tsd, arena_t *arena, bool internal) {
 		return arena;
 	}
 
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "Choose an arena based on a per-thread value!\n");
+#endif
+
 	/* During reentrancy, arena 0 is the safest bet. */
 	if (unlikely(tsd_reentrancy_level_get(tsd) > 0)) {
+#ifdef GRANDSTREAM_NETWORKS
+		jelog(1, "During reentrancy, arena 0 is the safest bet!\n");
+#endif
 		return arena_get(tsd_tsdn(tsd), 0, true);
 	}
 

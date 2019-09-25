@@ -2,16 +2,25 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <string.h>
+
+__thread int __attribute__((tls_model("initial-exec"))) thread = 1;
 
 static void *memory_malloc(void *userdata)
 {
-    char *memory[10] = {0};
+    char *memory[1024] = {0};
     int i;
 
-    printf("memory_malloc enter, sizeof(memory) / sizeof(memory[0]): %ld\n", sizeof(memory) / sizeof(memory[0]));
+    printf("memory_malloc enter, sizeof(memory) / sizeof(memory[0]): %ld, thread: %p\n", sizeof(memory) / sizeof(memory[0]), &thread);
 
     for (i = 0; i < sizeof(memory) / sizeof(memory[0]); i++) {
         memory[i] = malloc(i << 2);
+        strcpy(memory[i], "Hello World");
+    }
+
+    for (i = 0; i < sizeof(memory) / sizeof(memory[0]); i++) {
+        free(memory[i]);
+        memory[i] = NULL;
     }
 
     return NULL;
@@ -32,9 +41,9 @@ int main(int argc, char **argv)
 
     memory_malloc(NULL);
 
-    while (1) {
+    do {
         sleep(1);
-    }
+    } while (0);
 
     return 0;
 }

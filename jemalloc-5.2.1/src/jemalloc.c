@@ -506,6 +506,10 @@ arena_t *
 arena_choose_hard(tsd_t *tsd, bool internal) {
 	arena_t *ret JEMALLOC_CC_SILENCE_INIT(NULL);
 
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "Slow path, called only by arena_choose()!\n");
+#endif
+
 	if (have_percpu_arena && PERCPU_ARENA_ENABLED(opt_percpu_arena)) {
 		unsigned choose = percpu_arena_choose();
 		ret = arena_get(tsd_tsdn(tsd), choose, true);
@@ -1573,6 +1577,11 @@ malloc_init_hard_a0_locked() {
 		return true;
 	}
 	a0 = arena_get(TSDN_NULL, 0, false);
+
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "malloc init state change, '%d' ----> '%d'\n", malloc_init_state, malloc_init_a0_initialized);
+#endif
+
 	malloc_init_state = malloc_init_a0_initialized;
 
 	return false;
@@ -1591,6 +1600,10 @@ malloc_init_hard_a0(void) {
 /* Initialize data structures which may trigger recursive allocation. */
 static bool
 malloc_init_hard_recursible(void) {
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "malloc init state change, '%d' ----> '%d'\n", malloc_init_state, malloc_init_recursible);
+#endif
+
 	malloc_init_state = malloc_init_recursible;
 
 	ncpus = malloc_ncpus();
@@ -1732,6 +1745,10 @@ malloc_init_hard_finish(void) {
 	if (malloc_mutex_boot()) {
 		return true;
 	}
+
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "malloc init state change, '%d' ----> '%d'\n", malloc_init_state, malloc_init_initialized);
+#endif
 
 	malloc_init_state = malloc_init_initialized;
 	malloc_slow_flag_init();
@@ -1973,6 +1990,10 @@ imalloc_no_sample(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd,
 		    dopts->zero, tcache, arena);
 	}
 
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "Fill in the arena, dopts->arena_ind: %d, arena: %p\n", dopts->arena_ind, arena);
+#endif
+
 	return iallocztm(tsd_tsdn(tsd), size, ind, dopts->zero, tcache, false,
 	    arena, sopts->slow);
 }
@@ -2073,6 +2094,9 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 	int8_t reentrancy_level;
 
 	/* Compute the amount of memory the user wants. */
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "Compute the amount of memory the user wants, sopts->may_overflow: %d\n", sopts->may_overflow);
+#endif
 	if (unlikely(compute_size_with_overflow(sopts->may_overflow, dopts,
 	    &size))) {
 		goto label_oom;
@@ -2084,7 +2108,9 @@ imalloc_body(static_opts_t *sopts, dynamic_opts_t *dopts, tsd_t *tsd) {
 	}
 
 	/* This is the beginning of the "core" algorithm. */
-
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "This is the beginning of the \"core\" algorithm, dopts->alignment: %ld, size: %ld\n", dopts->alignment, size);
+#endif
 	if (dopts->alignment == 0) {
 		ind = sz_size2index(size);
 		if (unlikely(ind >= SC_NSIZES)) {
@@ -2358,7 +2384,7 @@ je_malloc(size_t size) {
 
 	if (tsd_get_allocates() && unlikely(!malloc_initialized())) {
 #ifdef GRANDSTREAM_NETWORKS
-		jelog(1, "Call malloc_default enter ...\n");
+		jelog(1, "Call malloc_default enter, SC_LOOKUP_MAXCLASS: %ld\n", SC_LOOKUP_MAXCLASS);
 #endif
 		return malloc_default(size);
 	}
@@ -2366,7 +2392,7 @@ je_malloc(size_t size) {
 	tsd_t *tsd = tsd_get(false);
 	if (unlikely(!tsd || !tsd_fast(tsd) || (size > SC_LOOKUP_MAXCLASS))) {
 #ifdef GRANDSTREAM_NETWORKS
-		jelog(1, "Call malloc_default enter, tsd: %p, tsd_fast(tsd): %d\n", tsd, tsd_fast(tsd));
+		jelog(1, "Call malloc_default enter, tsd: %p, tsd_fast(tsd): %d, SC_LOOKUP_MAXCLASS: %ld\n", tsd, tsd_fast(tsd), SC_LOOKUP_MAXCLASS);
 #endif
 		return malloc_default(size);
 	}
@@ -2375,7 +2401,7 @@ je_malloc(size_t size) {
 
 	if (unlikely(ticker_trytick(&tcache->gc_ticker))) {
 #ifdef GRANDSTREAM_NETWORKS
-		jelog(1, "Call malloc_default enter ...\n");
+		jelog(1, "Call malloc_default enter, tsd: %p\n", tsd);
 #endif
 		return malloc_default(size);
 	}
@@ -2405,7 +2431,7 @@ je_malloc(size_t size) {
 				tsd_bytes_until_sample_set(tsd, SSIZE_MAX);
 			}
 #ifdef GRANDSTREAM_NETWORKS
-			jelog(1, "Call malloc_default enter ...\n");
+			jelog(1, "Call malloc_default enter, tsd: %p\n", tsd);
 #endif
 
 			return malloc_default(size);
@@ -2425,14 +2451,14 @@ je_malloc(size_t size) {
 			tcache->prof_accumbytes += usize;
 		}
 
-		LOG("core.malloc.exit", "result: %p", ret);
+		LOG("core.malloc.exit", "result: %p, tsd: %p", ret, tsd);
 
 		/* Fastpath success */
 		return ret;
 	}
 
 #ifdef GRANDSTREAM_NETWORKS
-	jelog(1, "Call malloc_default enter ...\n");
+	jelog(1, "Call malloc_default enter, tsd: %p\n", tsd);
 #endif
 
 	return malloc_default(size);

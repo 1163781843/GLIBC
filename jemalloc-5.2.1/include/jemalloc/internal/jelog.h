@@ -114,7 +114,7 @@ static inline void jelogger(int level, const char *file, int line, const char *f
 
 	gettimeofday(&cur_tv, NULL);
 
-	size = snprintf(buffer, sizeof(buffer) - 1, "[%04d:%02d:%02d %02d:%02d:%02d:%06ld] [%s:%d] [%ld] -- ",
+	size = snprintf(buffer, sizeof(buffer) - 1, "[%04d:%02d:%02d %02d:%02d:%02d:%06ld] [%ld] [%s:%d] -- ",
 		cur_format_time.tm_year + 1900,
 		cur_format_time.tm_mon + 1,
 		cur_format_time.tm_mday,
@@ -122,7 +122,7 @@ static inline void jelogger(int level, const char *file, int line, const char *f
 		cur_format_time.tm_min,
 		cur_format_time.tm_sec,
 		cur_tv.tv_usec,
-		filename ? ++filename : file, line, syscall(SYS_gettid));
+		syscall(SYS_gettid), filename ? ++filename : file, line);
 
 	va_start(ap, format);
 	vsnprintf(buffer + size, sizeof(buffer) - size - 1, format, ap);

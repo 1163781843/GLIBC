@@ -1222,6 +1222,9 @@ extent_alloc_core(tsdn_t *tsdn, arena_t *arena, void *new_addr, size_t size,
 	/* mmap. */
 	if ((ret = extent_alloc_mmap(new_addr, size, alignment, zero, commit))
 	    != NULL) {
+#ifdef GRANDSTREAM_NETWORKS
+		jelog(1, "extent_alloc_core enter, mmap memory[%p], new_addr: %p, size: %ld, alignment: %ld\n", ret, new_addr, size, alignment);
+#endif
 		return ret;
 	}
 	/* "secondary" dss. */
@@ -1260,6 +1263,10 @@ extent_alloc_default(extent_hooks_t *extent_hooks, void *new_addr, size_t size,
 	 * already.
 	 */
 	assert(arena != NULL);
+
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "The arena we're allocating on behalf of must have been initialized already!\n");
+#endif
 
 	return extent_alloc_default_impl(tsdn, arena, new_addr, size,
 	    ALIGNMENT_CEILING(alignment, PAGE), zero, commit);
@@ -1332,6 +1339,9 @@ extent_grow_retained(tsdn_t *tsdn, arena_t *arena,
 
 	void *ptr;
 	if (*r_extent_hooks == &extent_hooks_default) {
+#ifdef GRANDSTREAM_NETWORKS
+		jelog(1, "*r_extent_hooks: %p, extent_hooks_default: %p\n", *r_extent_hooks, extent_hooks_default);
+#endif
 		ptr = extent_alloc_default_impl(tsdn, arena, NULL,
 		    alloc_size, PAGE, &zeroed, &committed);
 	} else {
@@ -1501,6 +1511,9 @@ extent_alloc_wrapper_hard(tsdn_t *tsdn, arena_t *arena,
 	size_t palignment = ALIGNMENT_CEILING(alignment, PAGE);
 	if (*r_extent_hooks == &extent_hooks_default) {
 		/* Call directly to propagate tsdn. */
+#ifdef GRANDSTREAM_NETWORKS
+		jelog(1, "Call directly to propagate tsdn!\n");
+#endif
 		addr = extent_alloc_default_impl(tsdn, arena, new_addr, esize,
 		    palignment, zero, commit);
 	} else {

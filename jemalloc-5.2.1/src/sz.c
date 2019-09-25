@@ -16,11 +16,19 @@ sz_boot_pind2sz_tab(const sc_data_t *sc_data) {
 		if (sc->psz) {
 			sz_pind2sz_tab[pind] = (ZU(1) << sc->lg_base)
 			    + (ZU(sc->ndelta) << sc->lg_delta);
+#ifdef GRANDSTREAM_NETWORKS
+			jelog(1, "Boot page index to table, SC_NSIZES: %ld, sz_pind2sz_tab[%d]: %ld", SC_NSIZES, pind, sz_pind2sz_tab[pind]);
+#endif
+
 			pind++;
 		}
 	}
 	for (int i = pind; i <= (int)SC_NPSIZES; i++) {
 		sz_pind2sz_tab[pind] = sc_data->large_maxclass + PAGE;
+#ifdef GRANDSTREAM_NETWORKS
+		jelog(1, "Boot page index to table, SC_NPSIZES: %ld, sz_pind2sz_tab[%d]: %ld", SC_NPSIZES, pind, sz_pind2sz_tab[pind]);
+#endif
+
 	}
 }
 

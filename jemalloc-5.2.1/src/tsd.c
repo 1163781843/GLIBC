@@ -179,6 +179,10 @@ tsd_slow_update(tsd_t *tsd) {
 
 void
 tsd_state_set(tsd_t *tsd, uint8_t new_state) {
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "TSD change state, '%d' ----> '%d'\n", tsd->state, new_state);
+#endif
+
 	/* Only the tsd module can change the state *to* recompute. */
 	assert(new_state != tsd_state_nominal_recompute);
 	uint8_t old_state = tsd_atomic_load(&tsd->state, ATOMIC_RELAXED);
