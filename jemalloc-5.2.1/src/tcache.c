@@ -632,6 +632,10 @@ tcaches_create_prep(tsd_t *tsd) {
 	malloc_mutex_lock(tsd_tsdn(tsd), &tcaches_mtx);
 
 	if (tcaches == NULL) {
+#ifdef GRANDSTREAM_NETWORKS
+		jelog(1, "base_alloc enter ...\n");
+#endif
+
 		tcaches = base_alloc(tsd_tsdn(tsd), b0get(), sizeof(tcache_t *)
 		    * (MALLOCX_TCACHE_MAX+1), CACHELINE);
 		if (tcaches == NULL) {
@@ -751,6 +755,10 @@ tcache_boot(tsdn_t *tsdn) {
 	nhbins = sz_size2index(tcache_maxclass) + 1;
 
 	/* Initialize tcache_bin_info. */
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "base_alloc enter ...\n");
+#endif
+
 	tcache_bin_info = (cache_bin_info_t *)base_alloc(tsdn, b0get(), nhbins
 	    * sizeof(cache_bin_info_t), CACHELINE);
 	if (tcache_bin_info == NULL) {

@@ -3044,6 +3044,10 @@ prof_boot2(tsd_t *tsd) {
 
 		log_tables_initialized = true;
 
+#ifdef GRANDSTREAM_NETWORKS
+		jelog(1, "base_alloc enter ...\n");
+#endif
+
 		gctx_locks = (malloc_mutex_t *)base_alloc(tsd_tsdn(tsd),
 		    b0get(), PROF_NCTX_LOCKS * sizeof(malloc_mutex_t),
 		    CACHELINE);
@@ -3057,6 +3061,10 @@ prof_boot2(tsd_t *tsd) {
 				return true;
 			}
 		}
+
+#ifdef GRANDSTREAM_NETWORKS
+		jelog(1, "base_alloc enter ...\n");
+#endif
 
 		tdata_locks = (malloc_mutex_t *)base_alloc(tsd_tsdn(tsd),
 		    b0get(), PROF_NTDATA_LOCKS * sizeof(malloc_mutex_t),

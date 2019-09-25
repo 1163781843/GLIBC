@@ -910,6 +910,10 @@ background_thread_boot1(tsdn_t *tsdn) {
 		return true;
 	}
 
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "base_alloc enter ...\n");
+#endif
+
 	background_thread_info = (background_thread_info_t *)base_alloc(tsdn,
 	    b0get(), opt_max_background_threads *
 	    sizeof(background_thread_info_t), CACHELINE);

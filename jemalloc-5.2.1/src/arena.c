@@ -1958,6 +1958,9 @@ arena_new(tsdn_t *tsdn, unsigned ind, extent_hooks_t *extent_hooks) {
 		nbins_total += bin_infos[i].n_shards;
 	}
 	size_t arena_size = sizeof(arena_t) + sizeof(bin_t) * nbins_total;
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "base_alloc enter ...\n");
+#endif
 	arena = (arena_t *)base_alloc(tsdn, base, arena_size, CACHELINE);
 	if (arena == NULL) {
 		goto label_error;

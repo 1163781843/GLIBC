@@ -735,6 +735,10 @@ arenas_i_impl(tsd_t *tsd, size_t i, bool compat, bool init) {
 				ctl_arena_t		ctl_arena;
 				ctl_arena_stats_t	astats;
 			};
+#ifdef GRANDSTREAM_NETWORKS
+			jelog(1, "base_alloc enter ...\n");
+#endif
+
 			struct container_s *cont =
 			    (struct container_s *)base_alloc(tsd_tsdn(tsd),
 			    b0get(), sizeof(struct container_s), QUANTUM);
@@ -744,6 +748,10 @@ arenas_i_impl(tsd_t *tsd, size_t i, bool compat, bool init) {
 			ret = &cont->ctl_arena;
 			ret->astats = &cont->astats;
 		} else {
+#ifdef GRANDSTREAM_NETWORKS
+			jelog(1, "base_alloc enter ...\n");
+#endif
+
 			ret = (ctl_arena_t *)base_alloc(tsd_tsdn(tsd), b0get(),
 			    sizeof(ctl_arena_t), QUANTUM);
 			if (ret == NULL) {
@@ -1129,6 +1137,10 @@ ctl_init(tsd_t *tsd) {
 		 * range of supported arena indices.
 		 */
 		if (ctl_arenas == NULL) {
+#ifdef GRANDSTREAM_NETWORKS
+			jelog(1, "base_alloc enter ...\n");
+#endif
+
 			ctl_arenas = (ctl_arenas_t *)base_alloc(tsdn,
 			    b0get(), sizeof(ctl_arenas_t), QUANTUM);
 			if (ctl_arenas == NULL) {
@@ -1138,6 +1150,10 @@ ctl_init(tsd_t *tsd) {
 		}
 
 		if (config_stats && ctl_stats == NULL) {
+#ifdef GRANDSTREAM_NETWORKS
+			jelog(1, "base_alloc enter ...\n");
+#endif
+
 			ctl_stats = (ctl_stats_t *)base_alloc(tsdn, b0get(),
 			    sizeof(ctl_stats_t), QUANTUM);
 			if (ctl_stats == NULL) {

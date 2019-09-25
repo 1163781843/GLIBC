@@ -8,7 +8,7 @@ __thread int __attribute__((tls_model("initial-exec"))) thread = 1;
 
 static void *memory_malloc(void *userdata)
 {
-    char *memory[1024] = {0};
+    char *memory[8] = {0};
     int i;
 
     printf("memory_malloc enter, sizeof(memory) / sizeof(memory[0]): %ld, thread: %p\n", sizeof(memory) / sizeof(memory[0]), &thread);

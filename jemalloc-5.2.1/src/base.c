@@ -38,11 +38,6 @@ base_map(tsdn_t *tsdn, extent_hooks_t *extent_hooks, unsigned ind, size_t size) 
 	assert(size == HUGEPAGE_CEILING(size));
 	size_t alignment = HUGEPAGE;
 
-#ifdef GRANDSTREAM_NETWORKS
-	jelog(1, "extent_hooks: %p, extent_hooks_default: %p, size: %ld, alignment: %d\n",
-		extent_hooks, &extent_hooks_default, size, alignment);
-#endif
-
 	if (extent_hooks == &extent_hooks_default) {
 		addr = extent_alloc_mmap(NULL, size, alignment, &zero, &commit);
 	} else {
@@ -53,6 +48,11 @@ base_map(tsdn_t *tsdn, extent_hooks_t *extent_hooks, unsigned ind, size_t size) 
 		    &zero, &commit, ind);
 		post_reentrancy(tsd);
 	}
+
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "extent_hooks: %p, extent_hooks_default: %p, size: %ld, alignment: %d, addr[%p]\n",
+		extent_hooks, &extent_hooks_default, size, alignment, addr);
+#endif
 
 	return addr;
 }
@@ -319,6 +319,9 @@ base_extent_alloc(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment) {
 	 * Drop mutex during base_block_alloc(), because an extent hook will be
 	 * called.
 	 */
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "Drop mutex during base_block_alloc(), because an extent hook will be called!\n");
+#endif
 	malloc_mutex_unlock(tsdn, &base->mtx);
 	base_block_t *block = base_block_alloc(tsdn, base, extent_hooks,
 	    base_ind_get(base), &base->pind_last, &base->extent_sn_next, size,
@@ -423,9 +426,18 @@ base_extent_hooks_set(base_t *base, extent_hooks_t *extent_hooks) {
 	return old_extent_hooks;
 }
 
+#ifdef GRANDSTREAM_NETWORKS
+static void *__base_alloc_impl(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment, size_t *esn, const char *file, int line);
+#define base_alloc_impl(tsdn, base, size, alignment, esn) \
+	__base_alloc_impl(tsdn, base, size, alignment, esn, __FILE__, __LINE__)
+
+void *__base_alloc_impl(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment, size_t *esn, const char *file, int line)
+#else
 static void *
 base_alloc_impl(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment,
-    size_t *esn) {
+    size_t *esn)
+#endif
+    {
 	alignment = QUANTUM_CEILING(alignment);
 	size_t usize = ALIGNMENT_CEILING(size, alignment);
 	size_t asize = usize + alignment - QUANTUM;
@@ -443,7 +455,7 @@ base_alloc_impl(tsdn_t *tsdn, base_t *base, size_t size, size_t alignment,
 		/* Try to allocate more space. */
 		extent = base_extent_alloc(tsdn, base, usize, alignment);
 #ifdef GRANDSTREAM_NETWORKS
-		jelog(1, "Try to allocate more space, extent->e_addr: %p\n", extent->e_addr);
+		jelog(1, "[%s:%d]Try to allocate more space, extent->e_addr: %p\n", file, line, extent->e_addr);
 #endif
 
 	}

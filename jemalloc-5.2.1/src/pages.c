@@ -77,6 +77,9 @@ os_pages_map(void *addr, size_t size, size_t alignment, bool *commit) {
 		int prot = *commit ? PAGES_PROT_COMMIT : PAGES_PROT_DECOMMIT;
 
 		ret = mmap(addr, size, prot, mmap_flags, -1, 0);
+#ifdef GRANDSTREAM_NETWORKS
+		jelog(1, "%s enter, mmap memory[%p], size: %ld\n", __FUNCTION__, ret, size);
+#endif
 	}
 	assert(ret != NULL);
 

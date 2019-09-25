@@ -29,6 +29,10 @@ rtree_new(rtree_t *rtree, bool zeroed) {
 
 static rtree_node_elm_t *
 rtree_node_alloc_impl(tsdn_t *tsdn, rtree_t *rtree, size_t nelms) {
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "base_alloc enter ...\n");
+#endif
+
 	return (rtree_node_elm_t *)base_alloc(tsdn, b0get(), nelms *
 	    sizeof(rtree_node_elm_t), CACHELINE);
 }
@@ -44,6 +48,10 @@ rtree_node_dalloc_t *JET_MUTABLE rtree_node_dalloc =
 
 static rtree_leaf_elm_t *
 rtree_leaf_alloc_impl(tsdn_t *tsdn, rtree_t *rtree, size_t nelms) {
+#ifdef GRANDSTREAM_NETWORKS
+	jelog(1, "base_alloc enter ...\n");
+#endif
+
 	return (rtree_leaf_elm_t *)base_alloc(tsdn, b0get(), nelms *
 	    sizeof(rtree_leaf_elm_t), CACHELINE);
 }
