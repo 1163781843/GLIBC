@@ -26,7 +26,7 @@ set(CMAKE_BUILD_TYPE "Debug")
 include(ExternalProject)
 
 set(BINUTILS_SOURCE_DIR ${PROJECT_SOURCE_DIR}/binutils-2.34 CACHE FILEPATH "Where to find sources for binutils-2.34.")
-set(binutils_configure_opts --with-pic --enable-static)
+set(binutils_configure_opts --with-system-zlib --enable-host-shared)
 list(APPEND binutils_configure_opts "CC=${CMAKE_C_COMPILER} ${CMAKE_C_COMPILER_ARG1}")
 
 file(GLOB BINUTILS_ALL_FILES ${BINUTILS_SOURCE_DIR}/*)
@@ -53,11 +53,19 @@ add_library(opcodes STATIC IMPORTED)
 set_target_properties(opcodes PROPERTIES IMPORTED_LOCATION
     "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/usr/lib/libopcodes.a")
 
+add_library(iberty STATIC IMPORTED)
+set_target_properties(iberty PROPERTIES IMPORTED_LOCATION
+    "${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/usr/lib/libiberty.a")
+
 add_dependencies(bfd libbinutils)
 add_dependencies(opcodes libbinutils)
+add_dependencies(iberty libbinutils)
 
 set(BFD_LIBRARY ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/usr/lib/libbfd.a)
 set(OPCODES_LIBRARY ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/usr/lib/libopcodes.a)
+set(IBERTY_LIBRARY ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/usr/lib/libiberty.a)
+set(Z_LIBRARY -lz)
+set(DL_LIBRARY -ldl)
 
 include_directories(${PROJECT_SOURCE_DIR}/patch
     ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/usr/include)
@@ -75,8 +83,6 @@ else(LIBXML2_LIBRARY)
     message(FATAL_ERROR "xml2 lib could not be found")
 endif(LIBXML2_LIBRARY)
 
-link_libraries(-ldl -lm)
-
 add_executable(patchtool
     ${PROJECT_SOURCE_DIR}/patch/logger.c
     ${PROJECT_SOURCE_DIR}/patch/patch.cpp
@@ -85,17 +91,24 @@ add_executable(patchtool
 add_dependencies(patchtool
     bfd
     opcodes
+    iberty
 )
 
 add_definitions(
     -g
     -std=c++11
+    -DPACKAGE
+    -DPACKAGE_VERSION
+    -D_GNU_SOURCE
 )
 
 target_link_libraries(patchtool
     ${THREAD_LIBRARY}
     ${BFD_LIBRARY}
-    ${OPCODES_LIBRARY})
+    ${OPCODES_LIBRARY}
+    ${IBERTY_LIBRARY}
+    ${Z_LIBRARY}
+    ${DL_LIBRARY})
 
 install(PROGRAMS
     ${CMAKE_BINARY_DIR}/patchtool

@@ -22534,7 +22534,8 @@ configure-libiberty:
 	  $$s/$$module_srcdir/configure \
 	  --srcdir=$${topdir}/$$module_srcdir \
 	  $(HOST_CONFIGARGS) --build=${build_alias} --host=${host_alias} \
-	  --target=${target_alias} @extra_host_libiberty_configure_flags@ \
+	  --target=${target_alias} --enable-install-libiberty \
+	  @extra_host_libiberty_configure_flags@ \
 	  || exit 1
 @endif libiberty
 
