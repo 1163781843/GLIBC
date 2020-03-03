@@ -36,7 +36,55 @@ symaddr::symaddr(std::string *name, int addr) : name(name)
 symaddr::~symaddr()
 {}
 
-int patch::patch_read_symbols(bfd *abfd, int offset)
+int patch::patch_set_data(void)
+{
+    char jmpbuf[5] = {0};
+    int curaddr = 0;
+    int len = 0;
+    int *lv = NULL;
+
+    jmpbuf[0] = 0xe9;
+    memcpy(&jmpbuf[1], &targoffset, sizeof(int));
+
+    curaddr = targsrcaddrinfo & (~3); /* Address 4 byte alignment. */
+    len = (((targsrcaddrinfo + sizeof(jmpbuf)) - curaddr) + 3) / 4;
+    lv = new int[len * sizeof(int)];
+    if (lv) {
+        for (int i = 0; i < len; i++) {
+            /* Get machine code. */
+            lv[i] = ptrace(PTRACE_PEEKDATA, targpid, curaddr + i * sizeof(int), NULL);
+            if (-1 == lv[i] && 0 != errno) {
+                plogger(log_error, "PTRACE_PEEKDATA failure[%s]!\n", strerror(errno));
+                return -1;
+            }
+            plogger(log_notice, "lv[%d][%p], (curaddr + i * sizeof(int))[%p], (targsrcaddrinfo + sizeof(jmpbuf))[%p]\n",
+                i, lv[i], curaddr + i * sizeof(int), (targsrcaddrinfo + sizeof(jmpbuf)));
+        }
+
+        /* Set the jump machine code at the original target address. */
+        memcpy((char *)lv + (targsrcaddrinfo - curaddr), jmpbuf, sizeof(jmpbuf));
+
+        for (int i = 0; i < len; i++) {
+            /* Set machine code. */
+            if (ptrace(PTRACE_POKEDATA, targpid, curaddr + i * sizeof(int), lv[i]) < 0) {
+                plogger(log_error, "PTRACE_POKEDATA failure[%s]!\n", strerror(errno));
+                return -1;
+            }
+
+            plogger(log_notice, "lv[%d][%p], (curaddr + i * sizeof(int))[%p], (targsrcaddrinfo + sizeof(jmpbuf))[%p]\n",
+                i, lv[i], curaddr + i * sizeof(int), (targsrcaddrinfo + sizeof(jmpbuf)));
+        }
+
+        delete [] lv;
+    } else {
+        return -1;
+    }
+    plogger(log_notice, "curaddr[%p], targsrcaddrinfo[%p], len[%d], sizeof(jmpbuf)[%d]\n", curaddr, targsrcaddrinfo, len, sizeof(jmpbuf));
+
+    return 0;
+}
+
+int patch::patch_read_symbols(bfd *abfd, int offset, const char *filenames)
 {
     long storage_needed;
     int ret = 0;
@@ -76,7 +124,7 @@ int patch::patch_read_symbols(bfd *abfd, int offset)
         if (bfd_is_undefined_symclass(symclass)) {
             continue;
         }
-        //plogger(log_debug, "%s = %p\n", sym_name, sym_value);
+        //plogger(log_debug, "[%s] start addr[%p], %s = %p\n", filenames, offset, sym_name, sym_value - offset);
         symaddrs.push_back(new symaddr(new std::string(sym_name), sym_value));
     }
     //plogger(log_debug, "storage_needed[%d], number_of_symbols[%d]\n", storage_needed, number_of_symbols);
@@ -120,7 +168,7 @@ dynsym:
             continue;
         }
 
-        //plogger(log_debug, "%s = %p\n", sym_name, sym_value);
+        //plogger(log_debug, "[%s] start addr[%p], %s = %p\n", filenames, offset, sym_name, sym_value);
         symaddrs.push_back(new symaddr(new std::string(sym_name), sym_value));
     }
 
@@ -137,8 +185,14 @@ int patch::patch_symbol_init(pid_t pid, std::string &filename)
 {
     char buf[4096] = {0};
     bfd *abfd = NULL;
+    char targsrcfilename[1024] = {0};
+    char *targpname = NULL;
 
     plogger(log_debug, "target symbol init, pid[%d] filename[%s]\n", pid, filename.c_str());
+
+    snprintf(targsrcfilename, sizeof(targsrcfilename) - 1, "%s", filename.c_str());
+
+    targpname = strrchr(targsrcfilename, '/');
 
     snprintf(buf, sizeof(buf), "/proc/%d/maps", pid);
 
@@ -150,12 +204,22 @@ int patch::patch_symbol_init(pid_t pid, std::string &filename)
     while (proc_map.getline(buf, sizeof(buf) - 1)) {
         int vm_start, vm_end, pgoff, major, minor, ino;
         char flags[5], mfilename[4096] = {0};
+        char *key = NULL, *tokstr = NULL, *tmpkey = NULL;
+
         if ((sscanf(buf, "%x-%x %4s %x %d:%d %d %s", &vm_start, &vm_end,
             flags, &pgoff, &major, &minor, &ino, mfilename) < 7)) {
             plogger(log_error, "invalid format in /proc/$$/maps? %s\n", buf);
             continue;
         }
-        //plogger(log_debug, "0x%x-0x%x %s 0x%x %s\n", vm_start, vm_end, flags, pgoff, mfilename);
+
+        tokstr = mfilename;
+        while ((key = strsep(&tokstr, "/"))) {
+            tmpkey = key;
+        }
+
+        if ((targpname && !strcmp(++targpname, tmpkey)) || !strcmp(filename.c_str(), tmpkey)) {
+            continue;
+        }
 
         if ('r' == flags[0] && 'x' == flags[2] && 0 == pgoff && '\0' != *mfilename) {
             //plogger(log_debug, "file %s @ %p\n", mfilename, vm_start);
@@ -166,7 +230,7 @@ int patch::patch_symbol_init(pid_t pid, std::string &filename)
             }
 
             bfd_check_format(abfd, bfd_object);
-            patch_read_symbols(abfd, vm_start);
+            patch_read_symbols(abfd, vm_start, mfilename);
             bfd_close(abfd);
         }
     }
@@ -177,7 +241,7 @@ int patch::patch_symbol_init(pid_t pid, std::string &filename)
         return -1;
     }
     bfd_check_format(abfd, bfd_object);
-    patch_read_symbols(abfd, 0);
+    patch_read_symbols(abfd, 0, filename.c_str());
     bfd_close(abfd);
     proc_map.close();
 
@@ -207,13 +271,29 @@ int patch::patch_detach_targprocess(void)
     return 0;
 }
 
+void patch_map_over_sections (bfd *abfd, void (*operation)(bfd *, asection *, void *), void *user_storage)
+{
+    asection *sect;
+    unsigned int i = 0;
+
+    for (sect = abfd->sections; sect != NULL; i++, sect = sect->next) {
+        (*operation) (abfd, sect, user_storage);
+    }
+
+    if (i != abfd->section_count) {/* Debugging */
+        abort ();
+    }
+}
+
 int patch::patch_parse_command(std::string &command)
 {
     int ret = 0;
     char targsrcsymbol[1024] = {0};
     char targdstsymbol[1024] = {0};
+    char targdl[1024] = {0};
+    bfd *abfd = NULL;
 
-    if (strstr(command.c_str(), "jmp")) {
+    if (!strncasecmp(command.c_str(), "jmp", 3)) {
         if (sscanf(command.c_str(), "jmp %s %s\n", targsrcsymbol, targdstsymbol) != 2) {
             return -1;
         }
@@ -233,8 +313,28 @@ int patch::patch_parse_command(std::string &command)
         targoffset = targdstaddrinfo - targsrcaddrinfo - 5;
 
         plogger(log_debug, "targsrcsymbol[%s], targdstsymbol[%s], targoffset[%d]\n", targsrcsymbol, targdstsymbol, targoffset);
-    } else if (strstr(command.c_str(), "dl")) {
-        return -1;
+    } else if (!strncasecmp(command.c_str(), "dl", 2)) {
+        char *outbuf = NULL;
+        int outsize = 0;
+
+        if (sscanf(command.c_str(), "dl %s jmp %s %s\n", targdl, targsrcsymbol, targdstsymbol) != 3) {
+            plogger(log_notice, "targdl[%s], targsrcsymbol[%s], targdstsymbol[%s]\n", targdl, targsrcsymbol, targdstsymbol);
+            return -1;
+        }
+
+        abfd = bfd_openr(targdl, NULL);
+        if (NULL == abfd) {
+            plogger(log_error, "bfd_openr failure!\n");
+            return -1;
+        }
+        bfd_check_format(abfd, bfd_object);
+        //patch_map_over_sections(abfd, patch_map_over_sections, &outsize);
+
+        sleep(20);
+
+        bfd_close(abfd);
+
+        plogger(log_notice, "targdl[%s], targsrcsymbol[%s], targdstsymbol[%s]\n", targdl, targsrcsymbol, targdstsymbol);
     }
 
     return ret;
@@ -246,75 +346,6 @@ int patch::patch_lookup_symaddr(const char *symbol)
         if (!strcmp((*iter)->symaddr_get_name()->c_str(), symbol)) {
             (*iter)->symaddr_show();
             return (*iter)->symaddr_get_addr();
-        }
-    }
-
-    return 0;
-}
-
-int patch::patch_set_data(void)
-{
-    char jmpbuf[5] = {0};
-#if 0
-    int addr0 = 0;
-    int len = 0;
-    int *lv = NULL;
-#endif
-
-    jmpbuf[0] = 0xe9;
-    memcpy(&jmpbuf[1], &targoffset, sizeof(int));
-
-    if (set_data(targpid, targsrcaddrinfo, jmpbuf, sizeof(jmpbuf))) {
-        return -1;
-    }
-
-#if 0
-    addr0 = targsrcaddrinfo & (~3);
-    len = (((targsrcaddrinfo + sizeof(jmpbuf)) - addr0) + 3) / 4;
-    lv = new int[sizeof(jmpbuf) * sizeof(int)];
-
-    for (int i = 0; i < len; i++) {
-        lv[i] = ptrace(PTRACE_PEEKDATA, targpid, addr0 + i * sizeof(int), NULL);
-        if (-1 == lv[i] && 0 != errno) {
-            plogger(log_error, "ptrace PTRACE_PEEKDATA failure, targpid[%d]!\n", targpid);
-            return -1;
-        }
-    }
-
-    memcpy((char *)lv + (targsrcaddrinfo - addr0), jmpbuf, sizeof(jmpbuf));
-
-    for (int i = 0; i < len; i++) {
-        lv[i] = ptrace(PTRACE_PEEKDATA, targpid, addr0 + i * sizeof(int), NULL);
-        if (-1 == lv[i] && 0 != errno) {
-            plogger(log_error, "ptrace PTRACE_PEEKDATA failure!\n");
-            return -1;
-        }
-    }
-#endif
-
-    return 0;
-}
-
-int patch::set_data(pid_t pid, int addr, void *val, int vlen)
-{
-    int i;
-    int addr0 = addr & ~3;
-    int len = (((addr + vlen) - addr0) + 3)/4;
-    int *lv = (int *)malloc(len * sizeof(int));
-
-    for (i = 0; i < len; i++) {
-        lv[i] = ptrace(PTRACE_PEEKDATA, pid, addr0 + i * sizeof(int), NULL);
-        if (lv[i] == -1 && errno != 0) {
-            perror("ptrace peek");
-            return -1;
-        }
-    }
-
-    memcpy((char *)lv + (addr - addr0), val, vlen);
-    for (i = 0; i < len; i++) {
-        if (ptrace(PTRACE_POKEDATA, pid, addr0 + i * sizeof(int), lv[i]) < 0) {
-            perror("ptrace poke");
-            return -1;
         }
     }
 

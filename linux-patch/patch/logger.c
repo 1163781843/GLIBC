@@ -50,7 +50,7 @@ void patch_logger(int level, const char *file, int line, const char *format, ...
         filename = strrchr(file, '/');
     }
 
-    fprintf(stdout, "[%04d-%02d-%02d %02d:%02d:%02d:%03ld] %10s [%05ld]  -- %s:%d  %s\n",
+    fprintf(stdout, "[%04d-%02d-%02d %02d:%02d:%02d:%03ld] %s [%05ld]  -- %s:%d  %s\n",
         curtm->tm_year + 1900, curtm->tm_mon + 1, curtm->tm_mday,
         curtm->tm_hour, curtm->tm_min, curtm->tm_sec, curtv.tv_usec,
         patch_logstr(level), syscall(SYS_gettid), filename ? ++filename : file,
