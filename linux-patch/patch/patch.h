@@ -35,7 +35,9 @@ public:
     int patch_parse_command(std::string &command);
     int patch_lookup_symaddr(const char *symbol);
     int patch_set_data(void);
+    void *patch_get_target_addr(pid_t pid, const char *modname, void *localaddr);
 private:
+    void *patch_get_modbase_address(pid_t pid, const char *modname);
     std::list<symaddr *> symaddrs;
     pid_t targpid;
     std::string targname;

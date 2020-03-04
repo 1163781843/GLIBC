@@ -6,6 +6,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <cstring>
+#include <sys/mman.h>
 
 #include <bfd.h>
 
@@ -35,6 +36,56 @@ symaddr::symaddr(std::string *name, int addr) : name(name)
 
 symaddr::~symaddr()
 {}
+
+void *patch::patch_get_modbase_address(pid_t pid, const char *modname)
+{
+    char buffer[1024] = {0};
+    long modbase_address = 0;
+    char *modulepath = NULL, *mapfilelineitem = NULL;
+
+    if (pid < 0) {
+        snprintf(buffer, sizeof(buffer) - 1, "/proc/self/maps");
+    } else {
+        snprintf(buffer, sizeof(buffer) - 1, "/proc/%d/maps", pid);
+    }
+
+    std::ifstream proc_map(buffer, std::ios::in);
+    if (!proc_map.is_open()) {
+        plogger(log_error, "%s open failure!\n", buffer);
+    }
+
+    plogger(log_debug, "buffer[%s]\n", buffer);
+
+    while (proc_map.getline(buffer, sizeof(buffer) - 1)) {
+        if (strstr(buffer, modname)) {
+            plogger(log_debug, "buffer[%s]\n", buffer);
+            mapfilelineitem = strtok(buffer, " \t");
+            char *addr = strtok(buffer, "-");
+            modbase_address = strtoul(addr, NULL, 16 );
+
+            if (modbase_address == 0x8000) {
+                modbase_address = 0;
+            }
+            break;
+        }
+    }
+
+    proc_map.close();
+
+    return (void *)modbase_address;
+}
+
+void *patch::patch_get_target_addr(pid_t pid, const char *modname, void *localaddr)
+{
+    void *local_module_addr = nullptr, *remote_module_addr = nullptr, *remote_func_addr = nullptr;
+    local_module_addr = patch_get_modbase_address(-1, modname);
+    remote_module_addr = patch_get_modbase_address(pid, modname);
+    remote_func_addr = (void *)((long)localaddr - (long)local_module_addr + (long)remote_module_addr);
+
+    plogger(log_debug, "local_module_addr[%p], remote_module_addr[%p], remote_func_addr[%p], localaddr[%p]\n", local_module_addr, remote_module_addr, remote_func_addr, localaddr);
+
+    return remote_func_addr;
+}
 
 int patch::patch_set_data(void)
 {
@@ -188,7 +239,7 @@ int patch::patch_symbol_init(pid_t pid, std::string &filename)
     char targsrcfilename[1024] = {0};
     char *targpname = NULL;
 
-    plogger(log_debug, "target symbol init, pid[%d] filename[%s]\n", pid, filename.c_str());
+    plogger(log_debug, "target symbol init, pid[%d] filename[%s], mmap[%p]\n", pid, filename.c_str(), mmap);
 
     snprintf(targsrcfilename, sizeof(targsrcfilename) - 1, "%s", filename.c_str());
 
@@ -317,6 +368,8 @@ int patch::patch_parse_command(std::string &command)
         char *outbuf = NULL;
         int outsize = 0;
 
+        patch_get_target_addr(targpid, "libc-", (void *)mmap);
+
         if (sscanf(command.c_str(), "dl %s jmp %s %s\n", targdl, targsrcsymbol, targdstsymbol) != 3) {
             plogger(log_notice, "targdl[%s], targsrcsymbol[%s], targdstsymbol[%s]\n", targdl, targsrcsymbol, targdstsymbol);
             return -1;
@@ -329,8 +382,6 @@ int patch::patch_parse_command(std::string &command)
         }
         bfd_check_format(abfd, bfd_object);
         //patch_map_over_sections(abfd, patch_map_over_sections, &outsize);
-
-        sleep(20);
 
         bfd_close(abfd);
 
