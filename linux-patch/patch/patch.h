@@ -41,6 +41,7 @@ public:
     void patch_backup_registers(const struct user_regs_struct *registers);
     int patch_restore_registers(void) const;
     int patch_push_stack(struct user_regs_struct *registers, long value);
+    int patch_push_stack(struct user_regs_struct *registers, void *paddr, int size);
     int patch_continue(void) const;
 private:
     std::list<symaddr *> symaddrs;

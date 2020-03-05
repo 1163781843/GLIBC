@@ -8,6 +8,7 @@
 #include <cstring>
 #include <sys/mman.h>
 #include <sys/syscall.h>
+#include <dlfcn.h>
 
 #include <bfd.h>
 
@@ -40,7 +41,6 @@ void symaddr::symaddr_show(void) const
 symaddr::symaddr(std::string *name, int addr) : name(name)
 {
     this->addr = addr;
-    plogger(log_verbose, "symbol name[%s], addr[%p]\n", name->c_str(), addr);
 }
 
 symaddr::~symaddr()
@@ -54,6 +54,27 @@ int patch::patch_continue(void) const
     }
 
     wait(NULL);
+
+    return 0;
+}
+
+int patch::patch_push_stack(struct user_regs_struct *registers, void *paddr, int size)
+{
+    unsigned long esp = 0;
+    long word = 0;
+
+    esp = registers->esp;
+    esp -= size;
+    esp = esp - esp % 4;
+    registers->esp = esp;
+
+    for (int i = 0; i < size; i += 4) {
+        memcpy(&word, paddr + i, sizeof(word));
+        if (ptrace(PTRACE_POKETEXT, targpid, esp + i, word)) {
+            plogger(log_error, "PTRACE_POKEDATA failure!\n");
+            return -1;
+        }
+    }
 
     return 0;
 }
@@ -195,6 +216,7 @@ int patch::patch_read_symbols(bfd *abfd, int offset, const char *filenames)
         if (bfd_is_undefined_symclass(symclass)) {
             continue;
         }
+        //plogger(log_debug, "[%s] start addr[%p], %s = %p\n", filenames, offset, sym_name, sym_value);
         symaddrs.push_back(new symaddr(new std::string(sym_name), sym_value));
     }
 
@@ -273,7 +295,7 @@ int patch::patch_symbol_init(pid_t pid, std::string &filename)
     while (proc_map.getline(buf, sizeof(buf) - 1)) {
         int vm_start, vm_end, pgoff, major, minor, ino;
         char flags[5], mfilename[4096] = {0};
-        char *key = NULL, *tokstr = NULL, *tmpkey = NULL;
+        char *key = NULL, *tokstr = NULL, *tmpkey = NULL, *tmptokstr = NULL;
 
         if ((sscanf(buf, "%x-%x %4s %x %d:%d %d %s", &vm_start, &vm_end,
             flags, &pgoff, &major, &minor, &ino, mfilename) < 7)) {
@@ -281,10 +303,12 @@ int patch::patch_symbol_init(pid_t pid, std::string &filename)
             continue;
         }
 
-        tokstr = mfilename;
+        tmptokstr = tokstr = strdup(mfilename);
         while ((key = strsep(&tokstr, "/"))) {
             tmpkey = key;
         }
+        delete tmptokstr;
+        tmptokstr = nullptr;
 
         if ((targpname && !strcmp(++targpname, tmpkey)) || !strcmp(filename.c_str(), tmpkey)) {
             continue;
@@ -375,10 +399,14 @@ int patch::patch_parse_command(std::string &command)
         long value = 0;
         long raddr = 0;
 
+        if (sscanf(command.c_str(), "dl %s jmp %s %s\n", targdl, targsrcsymbol, targdstsymbol) != 3) {
+            plogger(log_error, "targdl[%s], targsrcsymbol[%s], targdstsymbol[%s]\n", targdl, targsrcsymbol, targdstsymbol);
+            return -1;
+        }
+
         int dlopenaddr = patch_lookup_symaddr("__libc_dlopen_mode");
         plogger(log_notice, "dlopenaddr[%p]\n", dlopenaddr);
 
-#if 0
         if (patch_read_registers(&curregs)) {
             plogger(log_error, "patch_read_registers failure!\n");
             return -1;
@@ -386,6 +414,28 @@ int patch::patch_parse_command(std::string &command)
 
         patch_backup_registers(&curregs);
 
+        if (patch_push_stack(&curregs, targdl, strlen(targdl) + 1)) {
+            plogger(log_error, "patch_push_stack failure!\n");
+            return -1;
+        }
+
+        if (patch_push_stack(&curregs, RTLD_LAZY | RTLD_NOW)) {
+            plogger(log_error, "patch_push_stack failure!\n");
+            return -1;
+        }
+
+        if (patch_push_stack(&curregs, targdl, sizeof(targdl))) {
+            plogger(log_error, "patch_push_stack failure!\n");
+            return -1;
+        }
+
+        if (patch_push_stack(&curregs, 0x41414140)) {
+            plogger(log_error, "patch_push_stack failure!\n");
+            return -1;
+        }
+        curregs.eip = dlopenaddr;
+
+#if 0
         memcpy(&value, interrupt, sizeof(interrupt));
         if (patch_push_stack(&curregs, value)) {
             plogger(log_error, "patch_push_stack failure!\n");
@@ -410,6 +460,7 @@ int patch::patch_parse_command(std::string &command)
 
         curregs.ebx = curregs.esp + 4;
         curregs.eax = 90;
+#endif
 
         if (patch_write_registers(&curregs)) {
             plogger(log_error, "patch_write_registers failure!\n");
@@ -429,12 +480,6 @@ int patch::patch_parse_command(std::string &command)
 
         if (patch_restore_registers()) {
             plogger(log_error, "patch_restore_registers failure!\n");
-            return -1;
-        }
-#endif
-
-        if (sscanf(command.c_str(), "dl %s jmp %s %s\n", targdl, targsrcsymbol, targdstsymbol) != 3) {
-            plogger(log_error, "targdl[%s], targsrcsymbol[%s], targdstsymbol[%s]\n", targdl, targsrcsymbol, targdstsymbol);
             return -1;
         }
 
