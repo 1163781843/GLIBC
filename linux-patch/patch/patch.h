@@ -1,6 +1,7 @@
 #ifndef __PATCH_H__
 #define __PATCH_H__
 
+#include <sys/user.h>
 #include <list>
 
 class symaddr {
@@ -30,20 +31,25 @@ public:
 
     int patch_symbol_init(pid_t pid, std::string &filenames);
     int patch_read_symbols(bfd *abfd, int offset, const char *filenames);
-    int patch_attach_targprocess(void);
-    int patch_detach_targprocess(void);
+    int patch_attach(void);
+    int patch_detach(void);
     int patch_parse_command(std::string &command);
-    int patch_lookup_symaddr(const char *symbol);
+    int patch_lookup_symaddr(const char *symbol) const;
     int patch_set_data(void);
-    void *patch_get_target_addr(pid_t pid, const char *modname, void *localaddr);
+    int patch_read_registers(struct user_regs_struct *registers);
+    int patch_write_registers(struct user_regs_struct *registers);
+    void patch_backup_registers(const struct user_regs_struct *registers);
+    int patch_restore_registers(void) const;
+    int patch_push_stack(struct user_regs_struct *registers, long value);
+    int patch_continue(void) const;
 private:
-    void *patch_get_modbase_address(pid_t pid, const char *modname);
     std::list<symaddr *> symaddrs;
     pid_t targpid;
     std::string targname;
     int targsrcaddrinfo;
     int targdstaddrinfo;
     int targoffset;
+    struct user_regs_struct orgregs;
 };
 
 #endif

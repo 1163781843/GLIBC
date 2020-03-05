@@ -86,6 +86,7 @@ endif(LIBXML2_LIBRARY)
 add_executable(patchtool
     ${PROJECT_SOURCE_DIR}/patch/logger.c
     ${PROJECT_SOURCE_DIR}/patch/patch.cpp
+    ${PROJECT_SOURCE_DIR}/patch/main.cpp
 )
 
 add_dependencies(patchtool

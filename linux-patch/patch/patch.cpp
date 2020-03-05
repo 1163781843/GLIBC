@@ -7,11 +7,21 @@
 #include <sys/wait.h>
 #include <cstring>
 #include <sys/mman.h>
+#include <sys/syscall.h>
 
 #include <bfd.h>
 
 #include <patch.h>
 #include <logger.h>
+
+static long mmap_args[] = {
+    0,
+    -1,
+    MAP_PRIVATE | MAP_ANONYMOUS,
+    PROT_READ | PROT_WRITE,
+    0x4000,
+    0
+};
 
 std::string *symaddr::symaddr_get_name(void) const
 {
@@ -25,66 +35,76 @@ int symaddr::symaddr_get_addr(void) const
 
 void symaddr::symaddr_show(void) const
 {
-    plogger(log_debug, "%s = %p[%p]\n", name->c_str(), (void *)addr, name);
 }
 
 symaddr::symaddr(std::string *name, int addr) : name(name)
 {
-    //plogger(log_debug, "%s = %p[%p]\n", name->c_str(), (void *)addr, name);
     this->addr = addr;
+    plogger(log_verbose, "symbol name[%s], addr[%p]\n", name->c_str(), addr);
 }
 
 symaddr::~symaddr()
 {}
 
-void *patch::patch_get_modbase_address(pid_t pid, const char *modname)
+int patch::patch_continue(void) const
 {
-    char buffer[1024] = {0};
-    long modbase_address = 0;
-    char *modulepath = NULL, *mapfilelineitem = NULL;
-
-    if (pid < 0) {
-        snprintf(buffer, sizeof(buffer) - 1, "/proc/self/maps");
-    } else {
-        snprintf(buffer, sizeof(buffer) - 1, "/proc/%d/maps", pid);
+    if (ptrace(PTRACE_CONT, targpid, NULL, NULL)) {
+        plogger(log_error, "PTRACE_CONT failure!\n");
+        return -1;
     }
 
-    std::ifstream proc_map(buffer, std::ios::in);
-    if (!proc_map.is_open()) {
-        plogger(log_error, "%s open failure!\n", buffer);
-    }
+    wait(NULL);
 
-    plogger(log_debug, "buffer[%s]\n", buffer);
-
-    while (proc_map.getline(buffer, sizeof(buffer) - 1)) {
-        if (strstr(buffer, modname)) {
-            plogger(log_debug, "buffer[%s]\n", buffer);
-            mapfilelineitem = strtok(buffer, " \t");
-            char *addr = strtok(buffer, "-");
-            modbase_address = strtoul(addr, NULL, 16 );
-
-            if (modbase_address == 0x8000) {
-                modbase_address = 0;
-            }
-            break;
-        }
-    }
-
-    proc_map.close();
-
-    return (void *)modbase_address;
+    return 0;
 }
 
-void *patch::patch_get_target_addr(pid_t pid, const char *modname, void *localaddr)
+int patch::patch_push_stack(struct user_regs_struct *registers, long value)
 {
-    void *local_module_addr = nullptr, *remote_module_addr = nullptr, *remote_func_addr = nullptr;
-    local_module_addr = patch_get_modbase_address(-1, modname);
-    remote_module_addr = patch_get_modbase_address(pid, modname);
-    remote_func_addr = (void *)((long)localaddr - (long)local_module_addr + (long)remote_module_addr);
+    registers->esp -= sizeof(int);
 
-    plogger(log_debug, "local_module_addr[%p], remote_module_addr[%p], remote_func_addr[%p], localaddr[%p]\n", local_module_addr, remote_module_addr, remote_func_addr, localaddr);
+    if (ptrace(PTRACE_POKEDATA, targpid, registers->esp, value)) {
+        plogger(log_error, "PTRACE_POKEDATA failure!\n");
+        return -1;
+    }
 
-    return remote_func_addr;
+    return 0;
+}
+
+void patch::patch_backup_registers(const struct user_regs_struct *registers)
+{
+    memcpy(&orgregs, registers, sizeof(orgregs));
+}
+
+int patch::patch_restore_registers(void) const
+{
+    if (ptrace(PTRACE_SETREGS, targpid, NULL, &orgregs)) {
+        plogger(log_error, "PTRACE_SETREGS failure!\n");
+        return -1;
+    }
+
+    return 0;
+}
+
+int patch::patch_read_registers(struct user_regs_struct *registers)
+{
+    if (ptrace(PTRACE_GETREGS, targpid, NULL, registers) < 0) {
+        plogger(log_error, "PTRACE_GETREGS failure!\n");
+        return -1;
+    }
+
+    plogger(log_notice, "registers->eip[%p], registers->esp[%p], registers->ebx[%p], registers->eax[%p]\n", registers->eip, registers->esp, registers->ebx, registers->eax);
+
+    return 0;
+}
+
+int patch::patch_write_registers(struct user_regs_struct *registers)
+{
+    if (ptrace(PTRACE_SETREGS, targpid, NULL, registers)) {
+        plogger(log_error, "PRTACE_SETREGS failure!\n");
+        return -1;
+    }
+
+    return 0;
 }
 
 int patch::patch_set_data(void)
@@ -175,10 +195,8 @@ int patch::patch_read_symbols(bfd *abfd, int offset, const char *filenames)
         if (bfd_is_undefined_symclass(symclass)) {
             continue;
         }
-        //plogger(log_debug, "[%s] start addr[%p], %s = %p\n", filenames, offset, sym_name, sym_value - offset);
         symaddrs.push_back(new symaddr(new std::string(sym_name), sym_value));
     }
-    //plogger(log_debug, "storage_needed[%d], number_of_symbols[%d]\n", storage_needed, number_of_symbols);
 
 dynsym:
     if (symbol_table) {
@@ -273,7 +291,6 @@ int patch::patch_symbol_init(pid_t pid, std::string &filename)
         }
 
         if ('r' == flags[0] && 'x' == flags[2] && 0 == pgoff && '\0' != *mfilename) {
-            //plogger(log_debug, "file %s @ %p\n", mfilename, vm_start);
             abfd = bfd_openr(mfilename, NULL);
             if (nullptr == abfd) {
                 plogger(log_warning, "bfd_openr '%s' failure!\n", mfilename);
@@ -302,7 +319,7 @@ int patch::patch_symbol_init(pid_t pid, std::string &filename)
     return 0;
 }
 
-int patch::patch_attach_targprocess(void)
+int patch::patch_attach(void)
 {
     if (ptrace(PTRACE_ATTACH, targpid, NULL, NULL) < 0) {
         plogger(log_error, "Attached to target '%d' failure!\n", targpid);
@@ -315,25 +332,11 @@ int patch::patch_attach_targprocess(void)
     return 0;
 }
 
-int patch::patch_detach_targprocess(void)
+int patch::patch_detach(void)
 {
     ptrace(PTRACE_DETACH, targpid, NULL, NULL);
 
     return 0;
-}
-
-void patch_map_over_sections (bfd *abfd, void (*operation)(bfd *, asection *, void *), void *user_storage)
-{
-    asection *sect;
-    unsigned int i = 0;
-
-    for (sect = abfd->sections; sect != NULL; i++, sect = sect->next) {
-        (*operation) (abfd, sect, user_storage);
-    }
-
-    if (i != abfd->section_count) {/* Debugging */
-        abort ();
-    }
 }
 
 int patch::patch_parse_command(std::string &command)
@@ -367,11 +370,71 @@ int patch::patch_parse_command(std::string &command)
     } else if (!strncasecmp(command.c_str(), "dl", 2)) {
         char *outbuf = NULL;
         int outsize = 0;
+        struct user_regs_struct curregs = {0};
+        char interrupt[] = {(char)0xcd, (char)0x80, (char)0xcc, (char)0x00};
+        long value = 0;
+        long raddr = 0;
 
-        patch_get_target_addr(targpid, "libc-", (void *)mmap);
+        int dlopenaddr = patch_lookup_symaddr("__libc_dlopen_mode");
+        plogger(log_notice, "dlopenaddr[%p]\n", dlopenaddr);
+
+#if 0
+        if (patch_read_registers(&curregs)) {
+            plogger(log_error, "patch_read_registers failure!\n");
+            return -1;
+        }
+
+        patch_backup_registers(&curregs);
+
+        memcpy(&value, interrupt, sizeof(interrupt));
+        if (patch_push_stack(&curregs, value)) {
+            plogger(log_error, "patch_push_stack failure!\n");
+            return -1;
+        }
+
+        curregs.eip = curregs.esp;
+        raddr = curregs.esp + 2;
+
+        for (int i = 0; i < (sizeof(mmap_args) / sizeof(mmap_args[0])); i++) {
+            plogger(log_notice, "Set value[%p], args %d[%p]\n", value, i, mmap_args[i]);
+            if (patch_push_stack(&curregs, mmap_args[i])) {
+                plogger(log_error, "patch_push_stack failure!\n");
+                return -1;
+            }
+        }
+
+        if (patch_push_stack(&curregs, raddr)) {
+            plogger(log_error, "patch_push_stack failure!\n");
+            return -1;
+        }
+
+        curregs.ebx = curregs.esp + 4;
+        curregs.eax = 90;
+
+        if (patch_write_registers(&curregs)) {
+            plogger(log_error, "patch_write_registers failure!\n");
+            return -1;
+        }
+
+        if (patch_continue()) {
+            plogger(log_error, "patch_continue failure!\n");
+            return -1;
+        }
+
+        if (patch_read_registers(&curregs)) {
+            plogger(log_error, "patch_read_registers failure!\n");
+            return -1;
+        }
+        plogger(log_notice, "curregs.eax[%p], curregs.ebx[%p], MAP_FAILED[%p]\n", curregs.eax, curregs.ebx, MAP_FAILED);
+
+        if (patch_restore_registers()) {
+            plogger(log_error, "patch_restore_registers failure!\n");
+            return -1;
+        }
+#endif
 
         if (sscanf(command.c_str(), "dl %s jmp %s %s\n", targdl, targsrcsymbol, targdstsymbol) != 3) {
-            plogger(log_notice, "targdl[%s], targsrcsymbol[%s], targdstsymbol[%s]\n", targdl, targsrcsymbol, targdstsymbol);
+            plogger(log_error, "targdl[%s], targsrcsymbol[%s], targdstsymbol[%s]\n", targdl, targsrcsymbol, targdstsymbol);
             return -1;
         }
 
@@ -381,7 +444,6 @@ int patch::patch_parse_command(std::string &command)
             return -1;
         }
         bfd_check_format(abfd, bfd_object);
-        //patch_map_over_sections(abfd, patch_map_over_sections, &outsize);
 
         bfd_close(abfd);
 
@@ -391,7 +453,7 @@ int patch::patch_parse_command(std::string &command)
     return ret;
 }
 
-int patch::patch_lookup_symaddr(const char *symbol)
+int patch::patch_lookup_symaddr(const char *symbol) const
 {
     for (auto iter = symaddrs.begin(); iter != symaddrs.end(); iter++) {
         if (!strcmp((*iter)->symaddr_get_name()->c_str(), symbol)) {
@@ -410,81 +472,3 @@ patch::patch()
 
 patch::~patch()
 {}
-
-static void patch_usage(char *prog)
-{
-    fprintf(stdout, "Usage:\n"
-        "\t %s -p <target-process-pid> -s <target-process-binary-file> -c <command> [-d dl]\n\n"
-        "\t dl: Represent dynamic library\n\n", prog);
-}
-
-int main(int argc, char * const *argv)
-{
-    int flags = 0;
-    int c;
-    pid_t targpid = - 1;
-    std::string targname;
-    std::string destdl;
-    std::string command;
-    int ret = 0;
-
-    while (-1 != (c = getopt(argc, argv, "p:s:d::c:"))) {
-        switch (c) {
-        case 'p':
-            targpid = atoi(optarg);
-            if (targpid <= 0) {
-                plogger(log_warning, "Invalid pid[%d], please check it!\n", targpid);
-                return -1;
-            }
-            flags |= patch::patch_targpid;
-            break;
-        case 's':
-            targname = std::string(optarg);
-            flags |= patch::patch_targbin;
-            break;
-        case 'd':
-            destdl = std::string(optarg);
-            break;
-        case 'c':
-            command = std::string(optarg);
-            flags |= patch::patch_command;
-            break;
-        default:
-            break;
-        }
-    }
-
-    if (!(flags & patch::patch_total)) {
-        patch_usage(argv[0]);
-        return -1;
-    }
-
-    std::unique_ptr<patch> init(new patch);
-
-    if (init->patch_symbol_init(targpid, targname)) {
-        plogger(log_error, "patch symbol init failure!\n");
-        return -1;
-    }
-
-    if (init->patch_attach_targprocess()) {
-        plogger(log_error, "patch attach target process failure!\n");
-        return -1;
-    }
-
-    if (init->patch_parse_command(command)) {
-        plogger(log_error, "patch parse command failure!\n");
-        ret = -1;
-        goto finished;
-    }
-
-    if (init->patch_set_data()) {
-        plogger(log_error, "patch set memory data failure!\n");
-        ret = -1;
-        goto finished;
-    }
-
-finished:
-    init->patch_detach_targprocess();
-
-    return ret;
-}
