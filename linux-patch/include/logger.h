@@ -5,6 +5,8 @@
 extern "C" {
 #endif
 
+#include <config.h>
+
 enum {
     log_error,
     log_warning,
@@ -13,7 +15,7 @@ enum {
     log_debug,
 };
 
-void patch_logger(int level, const char *file, int line, const char *format, ...);
+void_t patch_logger(int32b_t level, const int8b_t *file, int32b_t line, const int8b_t *format, ...);
 
 #define plogger(level, ...) do {                            \
     patch_logger(level, __FILE__, __LINE__, __VA_ARGS__);   \

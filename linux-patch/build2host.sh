@@ -10,8 +10,8 @@ export CC="/usr/bin/gcc"
 export CXX="/usr/bin/g++"
 
 export CFLAGS="-g"
-export CXXFLAGS="${CFLAGS}"
-export CPPFLAGS="${CFLAGS}"
+export CXXFLAGS="${CFLAGS} -std=c++11"
+export CPPFLAGS="${CFLAGS} -std=c++11"
 export buildDIR="buildDIR"
 
 rm -rf ${buildDIR}; mkdir -p ${buildDIR}; cd ${buildDIR}

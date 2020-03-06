@@ -23,9 +23,38 @@ endif(COMMAND cmake_policy)
 
 set(CMAKE_BUILD_TYPE "Debug")
 
-include(ExternalProject)
+include(CheckTypeSize)
+set(CMAKEDEFINE_INT32_T "int")
+set(CMAKEDEFINE_UINT32_T "unsigned int")
+set(CMAKEDEFINE_LONG_T "long")
+set(CMAKEDEFINE_ULONG_T "unsigned long")
+set(CMAKEDEFINE_INT8_T "char")
+set(CMAKEDEFINE_UINT8_T "unsigned char")
+set(CMAKEDEFINE_INT16_T "short")
+set(CMAKEDEFINE_UINT16_T "unsigned short")
+set(CMAKEDEFINE_VOID_T "void")
 
-set(BINUTILS_SOURCE_DIR ${PROJECT_SOURCE_DIR}/binutils-2.34 CACHE FILEPATH "Where to find sources for binutils-2.34.")
+set(CMAKEDEFINE_UINT32_MASK "0xFFFFFFFF")
+set(CMAKEDEFINE_UINT8_MASK "0xFF")
+set(CMAKEDEFINE_UINT16_MASK "0xFFFF")
+
+CHECK_TYPE_SIZE(long CMAKE_SIZEOF_LONG)
+if(CMAKE_SIZEOF_LONG STREQUAL 4)
+    set(CMAKEDEFINE_LD_T "\"%d\"")
+    set(CMAKEDEFINE_LU_T "\"%u\"")
+    set(CMAKEDEFINE_LX_T "\"%x\"")
+    set(CMAKEDEFINE_ULONG_MASK "0xFFFFFFFF")
+    set(CMAKEDEFINE_BYTE "4")
+else(CMAKE_SIZEOF_LONG STREQUAL 4)
+    set(CMAKEDEFINE_LD_T "\"%ld\"")
+    set(CMAKEDEFINE_LU_T "\"%lu\"")
+    set(CMAKEDEFINE_LX_T "\"%lx\"")
+    set(CMAKEDEFINE_ULONG_MASK "0xFFFFFFFFFFFFFFFF")
+    set(CMAKEDEFINE_BYTE "8")
+endif(CMAKE_SIZEOF_LONG STREQUAL 4)
+
+include(ExternalProject)
+set(BINUTILS_SOURCE_DIR ${PROJECT_SOURCE_DIR}/libs/binutils-2.34 CACHE FILEPATH "Where to find sources for binutils-2.34.")
 set(binutils_configure_opts --with-system-zlib --enable-host-shared)
 list(APPEND binutils_configure_opts "CC=${CMAKE_C_COMPILER} ${CMAKE_C_COMPILER_ARG1}")
 
@@ -67,8 +96,36 @@ set(IBERTY_LIBRARY ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/usr/lib/libib
 set(Z_LIBRARY -lz)
 set(DL_LIBRARY -ldl)
 
-include_directories(${PROJECT_SOURCE_DIR}/patch
+include_directories(${PROJECT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_BINARY_DIR}/${CMAKE_CFG_INTDIR}/usr/include)
+
+include(CheckIncludeFile)
+include(CheckIncludeFiles)
+
+check_include_file("stdio.h" HAVE_STDIO_H)
+check_include_file("string.h" HAVE_STRING_H)
+check_include_file("stdarg.h" HAVE_STDARG_H)
+check_include_file("stdlib.h" HAVE_STDLIB_H)
+check_include_file("unistd.h" HAVE_UNISTD_H)
+check_include_file("time.h" HAVE_TIME_H)
+check_include_file("dlfcn.h" HAVE_DLFCN_H)
+check_include_file("sys/ptrace.h" HAVE_SYS_PTRACE_H)
+check_include_file("sys/time.h" HAVE_SYS_TIME_H)
+check_include_file("sys/syscall.h" HAVE_SYS_SYSCALL_H)
+check_include_file("sys/types.h" HAVE_SYS_TYPES_H)
+check_include_file("sys/user.h" HAVE_SYS_USER_H)
+
+# include(CheckIncludeFileCXX)
+# check_include_file_cxx("iostream" HAVE_IOSTREAM_H)
+# check_include_file_cxx("list" HAVE_LIST_H)
+# check_include_file_cxx("memory" HAVE_MEMORY_H)
+# check_include_file_cxx("fstream" HAVE_FSTREAM_H)
+
+configure_file (
+    "${PROJECT_SOURCE_DIR}/include/config.h.in"
+    "${PROJECT_SOURCE_DIR}/include/config.h"
+    @ONLY
+)
 
 find_package(Threads)
 if(CMAKE_THREAD_LIBS_INIT)
@@ -77,16 +134,10 @@ else(CMAKE_THREAD_LIBS_INIT)
     message(FATAL_ERROR "pthread lib could not be found")
 endif(CMAKE_THREAD_LIBS_INIT)
 
-find_package(LibXml2)
-if(LIBXML2_LIBRARY)
-else(LIBXML2_LIBRARY)
-    message(FATAL_ERROR "xml2 lib could not be found")
-endif(LIBXML2_LIBRARY)
-
 add_executable(patchtool
-    ${PROJECT_SOURCE_DIR}/patch/logger.c
-    ${PROJECT_SOURCE_DIR}/patch/patch.cpp
-    ${PROJECT_SOURCE_DIR}/patch/main.cpp
+    ${PROJECT_SOURCE_DIR}/src/logger.c
+    ${PROJECT_SOURCE_DIR}/src/patch.cpp
+    ${PROJECT_SOURCE_DIR}/src/main.cpp
 )
 
 add_dependencies(patchtool
@@ -97,7 +148,6 @@ add_dependencies(patchtool
 
 add_definitions(
     -g
-    -std=c++11
     -DPACKAGE
     -DPACKAGE_VERSION
     -D_GNU_SOURCE

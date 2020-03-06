@@ -1,46 +1,44 @@
-#include <iostream>
-#include <memory>
-#include <string>
-#include <unistd.h>
-
-#include <bfd.h>
-
 #include <logger.h>
 #include <patch.h>
+#include <config.h>
 
-static void patch_usage(char *prog)
+#include <iostream>
+#include <string>
+
+static void_t usage_help(int8b_t *prog)
 {
     fprintf(stdout, "Usage:\n"
-        "\t %s -p <target-process-pid> -s <target-process-binary-file> -c <command> [-d dl]\n\n"
-        "\t dl: Represent dynamic library\n\n", prog);
+        "    %s -p <target-process-pid> -e <target-process-binary-file> -c <asm instruction> [-d dynamic path]\n\n"
+        "    asm instruction: jmp src_func_addr dst_func_addr\n\n", prog);
 }
 
-int main(int argc, char * const *argv)
+int32b_t main(int32b_t argc, int8b_t * const *argv)
 {
-    int flags = 0;
-    int c;
-    pid_t targpid = - 1;
-    std::string targname;
-    std::string destdl;
+    int32b_t retval = 0;
+    int8b_t c = 0;
+    uint32b_t flags = 0;
+    pid_t pidno = -1;
+    std::string exename;
+    std::string dynlib;
     std::string command;
-    int ret = 0;
 
-    while (-1 != (c = getopt(argc, argv, "p:s:d::c:"))) {
+    while (-1 != (c = getopt(argc, argv, "p:e:d:c:"))) {
         switch (c) {
         case 'p':
-            targpid = atoi(optarg);
-            if (targpid <= 0) {
-                plogger(log_warning, "Invalid pid[%d], please check it!\n", targpid);
+            pidno = atoi(optarg);
+            if (pidno <= 0) {
+                plogger(log_warning, "Invalid pid[%d], please check it!\n", pidno);
                 return -1;
             }
             flags |= patch::patch_targpid;
             break;
-        case 's':
-            targname = std::string(optarg);
+        case 'e':
+            exename = std::string(optarg);
             flags |= patch::patch_targbin;
             break;
         case 'd':
-            destdl = std::string(optarg);
+            dynlib = std::string(optarg);
+            flags |= patch::patch_dynlib;
             break;
         case 'c':
             command = std::string(optarg);
@@ -52,37 +50,9 @@ int main(int argc, char * const *argv)
     }
 
     if (!(flags & patch::patch_total)) {
-        patch_usage(argv[0]);
+        usage_help(argv[0]);
         return -1;
     }
 
-    std::unique_ptr<patch> init(new patch);
-
-    if (init->patch_symbol_init(targpid, targname)) {
-        plogger(log_error, "patch symbol init failure!\n");
-        return -1;
-    }
-
-    if (init->patch_attach()) {
-        plogger(log_error, "patch attach target process failure!\n");
-        return -1;
-    }
-
-    if (init->patch_parse_command(command)) {
-        plogger(log_error, "patch parse command failure!\n");
-        ret = -1;
-        goto finished;
-    }
-
-    if (init->patch_set_data()) {
-        plogger(log_error, "patch set memory data failure!\n");
-        ret = -1;
-        goto finished;
-    }
-
-finished:
-    init->patch_detach();
-
-    return ret;
+    return retval;
 }
-

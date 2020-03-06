@@ -1,16 +1,7 @@
-#include <stdio.h>
-#include <string.h>
-#include <pthread.h>
-#include <stdarg.h>
-#include <sys/time.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <sys/syscall.h>
-#include <sys/types.h>
-
+#include <config.h>
 #include <logger.h>
 
-static const char *patch_logstr(int level)
+static const int8b_t *patch_logstr(int32_t level)
 {
     switch (level) {
     case log_error:
@@ -29,14 +20,14 @@ static const char *patch_logstr(int level)
     return "\033[32;1mdebug\33[0m";
 }
 
-void patch_logger(int level, const char *file, int line, const char *format, ...)
+void_t patch_logger(int32b_t level, const int8b_t *file, int32b_t line, const int8b_t *format, ...)
 {
     time_t cursec;
     struct timeval curtv;
     struct tm *curtm = NULL;
-    char *buffer = NULL;
+    int8b_t *buffer = NULL;
     va_list ap;
-    char *filename = NULL;
+    int8b_t *filename = NULL;
 
     va_start(ap, format);
     vasprintf(&buffer, format, ap);
