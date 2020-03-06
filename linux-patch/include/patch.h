@@ -10,7 +10,7 @@
 
 class patch : public bfdelf {
 public:
-    patch();
+    patch(pid_t pidno, const std::string &exename, const std::string &cmdline, const std::string &dynlib = nullptr);
     ~patch();
 
     enum {
@@ -20,9 +20,13 @@ public:
         patch_total   = patch_targpid | patch_targbin | patch_command,
         patch_dynlib  = 1 << 4
     };
+
+    pid_t patch_get_pidno(void) const;
+    int32b_t patch_load_dynso();
+    int32b_t patch_parse_cmd();
 private:
-    static std::list<std::shared_ptr<symbol>> symaddrs;
     pid_t pidno;
+    const std::string &cmdline;
 };
 
 #endif

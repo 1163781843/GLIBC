@@ -114,6 +114,7 @@ check_include_file("sys/time.h" HAVE_SYS_TIME_H)
 check_include_file("sys/syscall.h" HAVE_SYS_SYSCALL_H)
 check_include_file("sys/types.h" HAVE_SYS_TYPES_H)
 check_include_file("sys/user.h" HAVE_SYS_USER_H)
+check_include_file("sys/wait.h" HAVE_SYS_WAIT_H)
 
 # include(CheckIncludeFileCXX)
 # check_include_file_cxx("iostream" HAVE_IOSTREAM_H)
@@ -136,6 +137,8 @@ endif(CMAKE_THREAD_LIBS_INIT)
 
 add_executable(patchtool
     ${PROJECT_SOURCE_DIR}/src/logger.c
+    ${PROJECT_SOURCE_DIR}/src/sysmem.cpp
+    ${PROJECT_SOURCE_DIR}/src/binelf.cpp
     ${PROJECT_SOURCE_DIR}/src/patch.cpp
     ${PROJECT_SOURCE_DIR}/src/main.cpp
 )

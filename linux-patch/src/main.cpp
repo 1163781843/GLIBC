@@ -4,6 +4,7 @@
 
 #include <iostream>
 #include <string>
+#include <memory>
 
 static void_t usage_help(int8b_t *prog)
 {
@@ -53,6 +54,33 @@ int32b_t main(int32b_t argc, int8b_t * const *argv)
         usage_help(argv[0]);
         return -1;
     }
+
+    std::unique_ptr<patch> init(new patch(pidno, exename, command, dynlib));
+
+    if (init->readsymbols(pidno)) {
+        plogger(log_error, "readsymbols failure!\n");
+        return -1;
+    }
+
+    if (init->attach(pidno)) {
+        plogger(log_error, "attach failure!\n");
+        return -1;
+    }
+
+    if ((flags & patch::patch_dynlib) && init->patch_load_dynso()) {
+        retval = -1;
+        plogger(log_error, "patch_load_dynso failure!\n");
+        goto finished;
+    }
+
+    if (init->patch_parse_cmd()) {
+        retval = -1;
+        plogger(log_error, "patch_parse_cmd failure!\n");
+        goto finished;
+    }
+
+finished:
+    init->detach(pidno);
 
     return retval;
 }
