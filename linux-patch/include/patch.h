@@ -24,9 +24,13 @@ public:
     pid_t patch_get_pidno(void) const;
     int32b_t patch_load_dynso();
     int32b_t patch_parse_cmd();
+    int32b_t patch_jump_inject();
 private:
     pid_t pidno;
     const std::string &cmdline;
+    ulong_t srcaddr;
+    ulong_t dstaddr;
+    ulong_t offset;
 };
 
 #endif

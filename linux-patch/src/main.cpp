@@ -79,7 +79,19 @@ int32b_t main(int32b_t argc, int8b_t * const *argv)
         goto finished;
     }
 
+    if (init->patch_jump_inject()) {
+        retval = -1;
+        plogger(log_error, "patch_parse_cmd failure!\n");
+        goto finished;
+    }
+
+    init->detach(pidno);
+
+    return retval;
+
 finished:
+    init->unload_dynso(pidno);
+
     init->detach(pidno);
 
     return retval;

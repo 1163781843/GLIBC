@@ -168,3 +168,37 @@ install(PROGRAMS
     ${CMAKE_BINARY_DIR}/patchtool
     DESTINATION
     ${CMAKE_INSTALL_PREFIX}/sbin)
+
+add_library(extdynlib
+    SHARED
+    ${PROJECT_SOURCE_DIR}/src/logger.c
+    ${PROJECT_SOURCE_DIR}/example/extdynlib.c)
+
+set_target_properties(extdynlib
+    PROPERTIES
+    VERSION 1.0.1
+    SOVERSION 1)
+
+add_library(dylib
+    SHARED
+    ${PROJECT_SOURCE_DIR}/src/logger.c
+    ${PROJECT_SOURCE_DIR}/example/linkdylib.c)
+
+set_target_properties(dylib
+    PROPERTIES
+    VERSION 1.0.1
+    SOVERSION 1)
+
+add_executable(recipient
+    ${PROJECT_SOURCE_DIR}/src/logger.c
+    ${PROJECT_SOURCE_DIR}/example/recipient.c
+)
+
+add_dependencies(recipient dylib)
+
+target_link_libraries(recipient
+    ${CMAKE_BINARY_DIR}/libdylib.so
+    -ldl)
+
+
+

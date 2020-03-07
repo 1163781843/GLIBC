@@ -16,7 +16,7 @@ int32b_t sysmem::read_regs(pid_t pidno, struct user_regs_struct *regs)
     }
 
 #if defined(__linux__) && defined(__i386__)
-    plogger(log_notice, "regs->eip[%p], regs->esp[%p], regs->ebx[%p], regs->eax[%p]\n",
+    plogger(log_verbose, "regs->eip[%p], regs->esp[%p], regs->ebx[%p], regs->eax[%p]\n",
         regs->eip, regs->esp, regs->ebx, regs->eax);
 #elif defined(__linux__) && defined(__x86_64__)
 #elif defined(__linux__) && defined(__arm__)

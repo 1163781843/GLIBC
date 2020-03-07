@@ -31,14 +31,59 @@ bfdelf::bfdelf(const std::string &exename, const std::string &dynlib) : exename(
 bfdelf::~bfdelf()
 {}
 
+int32b_t bfdelf::read_dynso_symbols(pid_t pidno)
+{
+    int8b_t buf[1024] = {0};
+    bfd *abfd = nullptr;
+
+    snprintf(buf, sizeof(buf) - 1, "/proc/%d/maps", pidno);
+    std::ifstream procmaps(buf, std::ios::in);
+    if (!procmaps.is_open()) {
+        plogger(log_error, "%s open failure!\n", buf);
+        return -1;
+    }
+
+    while (procmaps.getline(buf, sizeof(buf) - 1)) {
+        int32b_t vm_start, vm_end, pgoff, major, minor, ino;
+        int8b_t flags[5], mfilename[1024] = {0};
+        int8b_t *key = nullptr, *tokstr = nullptr, *tmpkey = nullptr, *tmptokstr = nullptr;
+
+        if ((sscanf(buf, "%x-%x %4s %x %d:%d %d %s", &vm_start, &vm_end,
+            flags, &pgoff, &major, &minor, &ino, mfilename) < 7)) {
+            plogger(log_error, "invalid format in /proc/$$/maps? %s\n", buf);
+            continue;
+        }
+
+        if (dynlib.compare(std::string(mfilename))) {
+            continue;
+        }
+
+        if ('r' == flags[0] && 'x' == flags[2] && 0 == pgoff && '\0' != *mfilename) {
+            abfd = bfd_openr(mfilename, NULL);
+            if (nullptr == abfd) {
+                continue;
+            }
+
+            bfd_check_format(abfd, bfd_object);
+            push_symbols(abfd, vm_start, mfilename);
+            bfd_close(abfd);
+        }
+    }
+
+    procmaps.close();
+
+    return 0;
+}
+
 int32b_t bfdelf::readsymbols(pid_t pidno)
 {
     int8b_t buf[1024] = {0};
     bfd *abfd = nullptr;
     int8b_t *pname = nullptr;
+    int8b_t pos = 0;
 
-    snprintf(buf, sizeof(buf) - 1, "%s", exename.c_str());
-    pname = strrchr(buf, '/');
+    pos = exename.rfind("/");
+
     snprintf(buf, sizeof(buf) - 1, "/proc/%d/maps", pidno);
     std::ifstream procmaps(buf, std::ios::in);
     if (!procmaps.is_open()) {
@@ -64,6 +109,10 @@ int32b_t bfdelf::readsymbols(pid_t pidno)
         delete tmptokstr;
         tmptokstr = nullptr;
 
+        if ((0 != pos) && !strcmp(exename.c_str() + pos + 1, tmpkey)) {
+            continue;
+        }
+
         if ((pname && !strcmp(++pname, tmpkey)) || !strcmp(exename.c_str(), tmpkey)) {
             continue;
         }
@@ -71,7 +120,6 @@ int32b_t bfdelf::readsymbols(pid_t pidno)
         if ('r' == flags[0] && 'x' == flags[2] && 0 == pgoff && '\0' != *mfilename) {
             abfd = bfd_openr(mfilename, NULL);
             if (nullptr == abfd) {
-                plogger(log_warning, "bfd_openr '%s' failure!\n", mfilename);
                 continue;
             }
 
@@ -97,7 +145,7 @@ int32b_t bfdelf::readsymbols(pid_t pidno)
 int32b_t bfdelf::load_dynso(pid_t pidno)
 {
     int32b_t retval = 0;
-    struct user_regs_struct curregs;
+    struct user_regs_struct curregs = {0};
     ulong_t dlopenaddr = 0;
     ulong_t stack_top_ptr = 0;
 
@@ -109,7 +157,12 @@ int32b_t bfdelf::load_dynso(pid_t pidno)
     backup_curregs(&curregs);
 
     dlopenaddr = find_symbol(std::string("__libc_dlopen_mode"));
-    plogger(log_debug, "symaddr[%p]\n", dlopenaddr);
+    //dlopenaddr = find_symbol(std::string("link_dynamic_dlopen"));
+    if (!dlopenaddr) {
+        plogger(log_error, "find symbol failure!\n");
+        return -1;
+    }
+    plogger(log_debug, "dlopenaddr[%p], dynlib.c_str()[%s]\n", dlopenaddr, dynlib.c_str());
 
     stack_top_ptr = push_data(pidno, &curregs, dynlib.c_str(), dynlib.size() + 1);
     if (ulong_mask_t == stack_top_ptr) {
@@ -129,7 +182,7 @@ int32b_t bfdelf::load_dynso(pid_t pidno)
         goto finished;
     }
 
-    if (push_data(pidno, &curregs, 0xff)) {
+    if (push_data(pidno, &curregs, 0xcc00)) {
         plogger(log_error, "push_data failure!\n");
         retval = -1;
         goto finished;
@@ -148,6 +201,12 @@ int32b_t bfdelf::load_dynso(pid_t pidno)
         goto finished;
     }
 
+    if (read_regs(pidno, &curregs)) {
+        plogger(log_error, "read register failure!\n");
+        retval = -1;
+        goto finished;
+    }
+
     if (prcontinue(pidno)) {
         plogger(log_error, "push_data failure!\n");
         retval = -1;
@@ -156,7 +215,87 @@ int32b_t bfdelf::load_dynso(pid_t pidno)
 
     if (read_regs(pidno, &curregs)) {
         plogger(log_error, "read register failure!\n");
+        retval = -1;
+        goto finished;
+    }
+
+#if defined(__linux__) && defined(__i386__)
+    handle = curregs.eax;
+#elif defined(__linux__) && defined(__x86_64__)
+#elif defined(__linux__) && defined(__arm__)
+#elif defined(__linux__) && defined(__aarch64__)
+#endif
+
+finished:
+    if (restore_bpregs(pidno)) {
+        plogger(log_error, "restore_bpregs failure!\n");
+        retval = -1;
+    }
+
+    return retval;
+}
+
+int32b_t bfdelf::unload_dynso(pid_t pidno)
+{
+    ulong_t dlcloseaddr = 0;
+    struct user_regs_struct curregs;
+    int32b_t retval = 0;
+
+    if (read_regs(pidno, &curregs)) {
+        plogger(log_error, "read register failure!\n");
         return -1;
+    }
+    backup_bpregs(&curregs);
+    backup_curregs(&curregs);
+
+    dlcloseaddr = find_symbol(std::string("__libc_dlclose"));
+    if (!dlcloseaddr) {
+        plogger(log_error, "find symbol failure!\n");
+        return -1;
+    }
+    plogger(log_debug, "dlcloseaddr[%p], handle[%p]\n", dlcloseaddr, handle);
+
+    if (push_data(pidno, &curregs, handle)) {
+        plogger(log_error, "push_data failure!\n");
+        retval = -1;
+        goto finished;
+    }
+
+    if (push_data(pidno, &curregs, 0xcc000000)) {
+        plogger(log_error, "push_data failure!\n");
+        retval = -1;
+        goto finished;
+    }
+
+#if defined(__linux__) && defined(__i386__)
+    curregs.eip = dlcloseaddr;
+#elif defined(__linux__) && defined(__x86_64__)
+#elif defined(__linux__) && defined(__arm__)
+#elif defined(__linux__) && defined(__aarch64__)
+#endif
+
+    if (write_regs(pidno, &curregs)) {
+        plogger(log_error, "push_data failure!\n");
+        retval = -1;
+        goto finished;
+    }
+
+    if (read_regs(pidno, &curregs)) {
+        plogger(log_error, "read register failure!\n");
+        retval = -1;
+        goto finished;
+    }
+
+    if (prcontinue(pidno)) {
+        plogger(log_error, "push_data failure!\n");
+        retval = -1;
+        goto finished;
+    }
+
+    if (read_regs(pidno, &curregs)) {
+        plogger(log_error, "read register failure!\n");
+        retval = -1;
+        goto finished;
     }
 
 finished:
@@ -166,6 +305,8 @@ finished:
     }
 
     return retval;
+
+    return 0;
 }
 
 ulong_t bfdelf::find_symbol(const std::string &src) const

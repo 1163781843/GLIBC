@@ -21,7 +21,9 @@ public:
     bfdelf(const std::string &exename, const std::string &dynlib = nullptr);
     ~bfdelf();
     int32b_t readsymbols(pid_t pidno);
+    int32b_t read_dynso_symbols(pid_t pidno);
     int32b_t load_dynso(pid_t pidno);
+    int32b_t unload_dynso(pid_t pidno);
     ulong_t find_symbol(const std::string &src) const;
 private:
     int32b_t push_symbols(bfd *abfd, int32b_t offset, const int8b_t *filename);
@@ -29,6 +31,7 @@ private:
     bfd *elfbfd;
     const std::string &exename;
     const std::string &dynlib;
+    ulong_t handle;
 };
 
 #endif
