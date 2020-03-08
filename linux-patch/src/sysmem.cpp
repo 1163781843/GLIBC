@@ -103,6 +103,16 @@ int32b_t sysmem::prcontinue(pid_t pidno) const
     return 0;
 }
 
+int32b_t sysmem::push_data(pid_t pidno, const ulong_t memaddr, const ulong_t value)
+{
+    if (ptrace(PTRACE_POKEDATA, pidno, memaddr, value) < 0) {
+        plogger(log_error, "PTRACE_POKEDATA failure!\n");
+        return -1;
+    }
+
+    return 0;
+}
+
 int32b_t sysmem::push_data(pid_t pidno, struct user_regs_struct *regs, const ulong_t value)
 {
     ulong_t stack_top_ptr = ulong_mask_t;
@@ -153,4 +163,9 @@ ulong_t sysmem::push_data(pid_t pidno, struct user_regs_struct *regs, const int8
     }
 
     return stack_top_ptr;
+}
+
+ulong_t sysmem::read_mem_data(pid_t pidno, ulong_t memaddr)
+{
+    return ptrace(PTRACE_PEEKDATA, pidno, memaddr, NULL);
 }

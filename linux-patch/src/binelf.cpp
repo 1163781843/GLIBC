@@ -156,8 +156,8 @@ int32b_t bfdelf::load_dynso(pid_t pidno)
     backup_bpregs(&curregs);
     backup_curregs(&curregs);
 
-    dlopenaddr = find_symbol(std::string("__libc_dlopen_mode"));
-    //dlopenaddr = find_symbol(std::string("link_dynamic_dlopen"));
+    //dlopenaddr = find_symbol(std::string("__libc_dlopen_mode"));
+    dlopenaddr = find_symbol(std::string("link_dynamic_dlopen"));
     if (!dlopenaddr) {
         plogger(log_error, "find symbol failure!\n");
         return -1;

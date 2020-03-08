@@ -70,12 +70,13 @@ int32b_t patch::patch_jump_inject()
     jmpbuf[0] = 0xe9;
 
     memcpy(&jmpbuf[1], &offset, sizeof(ulong_t));
-    curaddr = srcaddr & (~(sizeof(ulong_t)));
+    curaddr = srcaddr & (~(sizeof(ulong_t))); /* Address 4/8 byte alignment. */
     len = (((srcaddr + sizeof(jmpbuf)) - curaddr) + (sizeof(ulong_t) - 1)) / sizeof(ulong_t);
     lv = new long_t[len * sizeof(ulong_t)];
     if (lv) {
         for (ulong_t i = 0; i < len; i++) {
-            lv[i] = ptrace(PTRACE_PEEKDATA, pidno, curaddr + i * sizeof(ulong_t), NULL);
+            /* Get machine code. */
+            lv[i] = read_mem_data(pidno, curaddr + i * sizeof(ulong_t));
             if (-1 == lv[i] && 0 != errno) {
                 plogger(log_error, "PTRACE_PEEKDATA failure[%s]!\n", strerror(errno));
                 return -1;
@@ -87,7 +88,7 @@ int32b_t patch::patch_jump_inject()
 
         for (ulong_t i = 0; i < len; i++) {
             /* Set machine code. */
-            if (ptrace(PTRACE_POKEDATA, pidno, curaddr + i * sizeof(ulong_t), lv[i]) < 0) {
+            if (push_data(pidno, curaddr + i * sizeof(ulong_t), lv[i]) < 0) {
                 plogger(log_error, "PTRACE_POKEDATA failure[%s]!\n", strerror(errno));
                 return -1;
             }

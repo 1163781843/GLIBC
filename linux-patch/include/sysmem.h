@@ -17,8 +17,10 @@ public:
     int32b_t backup_curregs(struct user_regs_struct *regs);
     int32b_t restore_bpregs(pid_t pidno) const;
     int32b_t prcontinue(pid_t pidno) const;
+    int32b_t push_data(pid_t pidno, const ulong_t memaddr, const ulong_t value);
     int32b_t push_data(pid_t pidno, struct user_regs_struct *regs, const ulong_t value);
     ulong_t push_data(pid_t pidno, struct user_regs_struct *regs, const int8b_t *value, ulong_t len);
+    ulong_t read_mem_data(pid_t pidno, ulong_t memaddr);
 private:
     struct user_regs_struct curregs;
     struct user_regs_struct bpregs;
